@@ -663,6 +663,10 @@ Playing.prototype.followControls = function() {
 	// View movement
 	this.camera.x += mouse.dx / this.camera.zoom;
 	this.camera.y += mouse.dy / this.camera.zoom;
+	if(this.camera.x < 0) this.camera.x = 0;
+	if(this.camera.x > this.arena.w) this.camera.x = this.arena.w;
+	if(this.camera.y < 0) this.camera.y = 0;
+	if(this.camera.y > this.arena.h) this.camera.y = this.arena.h;
 	// Zoom
 	if(keys.plus && this.camera.zoom < this.maxZoom) {
 		this.camera.zoom *= this.zoomMultiplier;
