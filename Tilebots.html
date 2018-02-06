@@ -130,18 +130,18 @@ body {
 			<img src="tiles-example.png"/>
 			<p>The solid tile is your robot's head. If it is destroyed, your robot is eliminated from the game. This tile marks the center of your robot.</p>
 			<p>The empty tile is a body tile. It costs 1 energy, and does nothing.</p>
-			<p>The tile with another square in it is a movement tile. It costs 2 energy, and can't be used until your next turn.</p>
+			<p>The tile with another square in it is a foot tile. It costs 2 energy, and can't be used until your next turn.</p>
 			<p>The tile with an X in it is a weapon tile. It costs 2 energy, and like the movement tile, it can't be used until your next turn.</p>
 			<p>Tiles that can't be used until your next turn are marked with a cross:</p>
 			<img src="locked-tiles-example.png"/>
 			<h2>Setup</h2>
-			<p>When you click the play button, a box will appear. Enter the names of the players in the box, and press ENTER twice to start the game.</p>
+			<p>When you click the play button, a box will appear. Enter the names of the players in the box, and press ENTER twice to begin choosing colors. Use the sliders to choose each robot's color.</p>
 			<h2>On Your turn</h2>
 			<p>Use the +/- buttons to zoom in/out. Scroll to move the camera.</p>
 			<h3>Start Phase</h3>
 			<p>You begin your turn by recieving some energy. You'll get 3 energy, with a max of 6. If you have 6 or more energy, you wont get any this turn.</p>
 			<h3>Editing Phase</h3>
-			<p>You can edit your robot by hovering the mouse over an empty spot or another tile, then press "b", "f", or "w" to place a body, foot, or weapon tile there. You can replace other tiles by placing new tiles over them, but you won't get a refund.</p>
+			<p>If you're taking your first turn, you have to place your head tile. Then your turn ends. Otherwise, you can edit your robot by hovering the mouse over an empty spot or another tile, then press "b", "f", or "w" to place a body, foot, or weapon tile there. You can replace other tiles by placing new tiles over them, but you won't get a refund.</p>
 			<h3>Movement Phase</h3>
 			<p>To end your turn, click on your head tile to stay where you are, or click a movement tile to move your robot there.</p>
 			<h3>Attack Phase</h3>
@@ -317,6 +317,7 @@ Bot = function(x, y, hue, name) {
 	this.name = name;
 	
 	// Position of the bot
+	this.placed = false;
 	this.pos = {
 		x: x,
 		y: y
@@ -463,6 +464,7 @@ Bot.prototype.withinBounds = function(coords) {
 };
 
 Bot.prototype.draw = function() {
+	if(!this.placed) return;
 	ctx.save();
 	translate(this.pos);
 	ctx.fillStyle = this.color;
@@ -519,10 +521,6 @@ Playing = function(model) {
 	this.zoomMultiplier = 1.2;
 	this.maxZoom = 70;
 	this.minZoom = 20;
-	
-	// Move camera to new bot
-	this.camera.x = this.model.bots[0].pos.x;
-	this.camera.y = this.model.bots[0].pos.y;
 	
 	this.ms = {
 		x: mouse.x,
@@ -596,6 +594,7 @@ Playing.prototype.drawEverything = function() {
 Playing.prototype.nextTurn = function() {
 	// Make it easier to access main bot
 	var bot = this.model.bots[0];
+	debug(bot.pos);
 	
 	// Cut anything off bot that isn't within bounds
 	for(var i in bot.map.cellArr) {
@@ -621,8 +620,10 @@ Playing.prototype.nextTurn = function() {
 	newBot = this.model.bots[0];
 	
 	// Move camera to new bot
-	this.camera.x = newBot.pos.x;
-	this.camera.y = newBot.pos.y;
+	if(newBot.placed) {
+		this.camera.x = newBot.pos.x;
+		this.camera.y = newBot.pos.y;
+	}
 	
 	// Finish unfinished tiles
 	for(i in newBot.map.cellArr) {
@@ -674,32 +675,41 @@ Playing.prototype.followControls = function() {
 	var bot = this.model.bots[0];
 	
 	// Edit current bot
-	var coords = vToV(bot.pos, snapV(this.ms));
-	if((coords.x !== 0 || coords.y !== 0) && bot.canConnect(coords) && bot.withinBounds(coords)) {
-		if(keys.b && bot.energy >= 1 && bot.map.get(coords.x, coords.y) !== "body") {
-			bot.map.set(coords.x, coords.y, "body");
-			bot.energy--;
-		} else if(keys.w && bot.energy >= 2 && bot.map.get(coords.x, coords.y) !== "weapon" && bot.map.get(coords.x, coords.y) !== "unfinished weapon") {
-			bot.map.set(coords.x, coords.y, "unfinished weapon");
-			bot.energy -= 2;
-		} else if(keys.f && bot.energy >= 2 && bot.map.get(coords.x, coords.y) !== "foot" && bot.map.get(coords.x, coords.y) !== "unfinished foot") {
-			bot.map.set(coords.x, coords.y, "unfinished foot");
-			bot.energy -= 2;
-		} else if(keys.d) {
-			bot.map.set(coords.x, coords.y, "");
-			bot.removeExtra();
+	var coords = vToV(bot.pos, this.ms);
+	if(bot.placed) {
+		if((coords.x !== 0 || coords.y !== 0) && bot.canConnect(coords) && bot.withinBounds(coords)) {
+			if(keys.b && bot.energy >= 1 && bot.map.get(coords.x, coords.y) !== "body") {
+				bot.map.set(coords.x, coords.y, "body");
+				bot.energy--;
+			} else if(keys.w && bot.energy >= 2 && bot.map.get(coords.x, coords.y) !== "weapon" && bot.map.get(coords.x, coords.y) !== "unfinished weapon") {
+				bot.map.set(coords.x, coords.y, "unfinished weapon");
+				bot.energy -= 2;
+			} else if(keys.f && bot.energy >= 2 && bot.map.get(coords.x, coords.y) !== "foot" && bot.map.get(coords.x, coords.y) !== "unfinished foot") {
+				bot.map.set(coords.x, coords.y, "unfinished foot");
+				bot.energy -= 2;
+			} else if(keys.d) {
+				bot.map.set(coords.x, coords.y, "");
+				bot.removeExtra();
+			}
 		}
 	}
 	
 	// Follow clicks
 	if(mouse.click && mouse.y > this.infobar.height) {
-		mouse.click = false;
-		coords = vToV(bot.pos, snapV(this.ms));
-		var tileClicked = bot.map.get(coords.x, coords.y);
-		if(tileClicked === "head") {
+		if(bot.placed) {
+			mouse.click = false;
+			coords = vToV(bot.pos, this.ms);
+			var tileClicked = bot.map.get(coords.x, coords.y);
+			if(tileClicked === "head") {
+				this.nextTurn();
+			} else if(tileClicked === "foot") {
+				this.movementPhase(addV(bot.pos, coords));
+			}
+		} else if(this.ms.x >= 0 && this.ms.y >= 0 && this.ms.x < this.arena.w && this.ms.y < this.arena.h) {
+			bot.pos.x = this.ms.x;
+			bot.pos.y = this.ms.y;
+			bot.placed = true;
 			this.nextTurn();
-		} else if(tileClicked === "foot") {
-			this.movementPhase(addV(bot.pos, coords));
 		}
 	}
 };
@@ -730,6 +740,7 @@ Playing.prototype.update = function() {
 			// Find mouse position according to map
 			this.ms.x = (mouse.x - canvas.width / 2) / this.camera.zoom + this.camera.x;
 			this.ms.y = (mouse.y - canvas.height / 2) / this.camera.zoom + this.camera.y;
+			this.ms = snapV(this.ms);
 			// Let user interfere
 			this.followControls();
 			break;
