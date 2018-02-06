@@ -19,26 +19,71 @@ body {
 	src: url("ARCADE.TTF");
 }
 
-#overlay-div {
+.overlay {
 	display: none;
 	position: absolute;
 	top: 0;
 	bottom: 0;
 	left: 0;
 	right: 0;
+	overflow: scroll;
 }
 
-#input-container {
-	width: 300px;
+#name-input-container {
+	width: 400px;
 	height: 300px;
 	/*border: 1px solid white;*/
 	margin: 100px auto;
 }
 
-#setup-header {
+#color-input-container {
+	width: 400px;
+	margin: 100px auto;
+}
+
+#content-container {
+	width: 600px;
+	margin: 100px auto;
+}
+
+#color-input-container label {
+	font-family: "Arcade";
+	font-size: 40px;
+}
+
+#color-input-container input {
+	float: right;
+}
+
+.overlay div h1 {
 	font-family: "Arcade";
 	font-size: 100px;
+	font-weight: normal;
 	color: white;
+}
+
+.overlay div h2 {
+	font-family: "Arcade";
+	font-size: 70px;
+	font-weight: normal;
+	color: white;
+	margin-top: 30px;
+}
+
+.overlay div h3 {
+	font-family: "Arcade";
+	font-size: 50px;
+	font-weight: normal;
+	color: white;
+	margin-top: 30px;
+}
+
+.overlay div p {
+	color: white;
+	font-family: "Arcade";
+	font-size: 30px;
+	text-indent: 50px;
+	margin-top: 20px;
 }
 
 #name_input {
@@ -58,10 +103,49 @@ body {
 	<canvas id="canvas">
 		Sorry. HTML Canvas is not supported.
 	</canvas>
-	<div id="overlay-div">
-		<div id="input-container">
-			<p id="setup-header">Setup</p>
+	<div class="overlay" id="name-input-overlay">
+		<div id="name-input-container">
+			<h1>Setup</h1>
 			<textarea id="name_input" spellcheck="false"></textarea>
+		</div>
+	</div>
+	<div class="overlay" id="color-input-overlay">
+		<div id="color-input-container">
+			<h1>Setup</h1>
+			<div id="color-form-container">
+			</div>
+			<p>Press ENTER to continue</p>
+		</div>
+	</div>
+	<div class="overlay" id="instructions-overlay">
+		<div id="content-container">
+			<h1>How To Play</h1>
+			<h2>Overview</h2>
+			<p>Tilebots is a multiplayer game about robots building themselves while fighting other robots. Players take turns editing and moving their robot. The last robot in the arena wins!</p>
+			<h2>Energy</h2>
+			<p>Energy is used to build the robots. The amount of energy the current player has is displayed next to their name:</p>
+			<img src="infobar-example.png"/>
+			<h2>Tiles</h2>
+			<p>There are four tiles you can make your robot from:</p>
+			<img src="tiles-example.png"/>
+			<p>The solid tile is your robot's head. If it is destroyed, your robot is eliminated from the game. This tile marks the center of your robot.</p>
+			<p>The empty tile is a body tile. It costs 1 energy, and does nothing.</p>
+			<p>The tile with another square in it is a movement tile. It costs 2 energy, and can't be used until your next turn.</p>
+			<p>The tile with an X in it is a weapon tile. It costs 2 energy, and like the movement tile, it can't be used until your next turn.</p>
+			<p>Tiles that can't be used until your next turn are marked with a cross:</p>
+			<img src="locked-tiles-example.png"/>
+			<h2>Setup</h2>
+			<p>When you click the play button, a box will appear. Enter the names of the players in the box, and press ENTER twice to start the game.</p>
+			<h2>On Your turn</h2>
+			<p>Use the +/- buttons to zoom in/out. Scroll to move the camera.</p>
+			<h3>Start Phase</h3>
+			<p>You begin your turn by recieving some energy. You'll get 3 energy, with a max of 6. If you have 6 or more energy, you wont get any this turn.</p>
+			<h3>Editing Phase</h3>
+			<p>You can edit your robot by hovering the mouse over an empty spot or another tile, then press "b", "f", or "w" to place a body, foot, or weapon tile there. You can replace other tiles by placing new tiles over them, but you won't get a refund.</p>
+			<h3>Movement Phase</h3>
+			<p>To end your turn, click on your head tile to stay where you are, or click a movement tile to move your robot there.</p>
+			<h3>Attack Phase</h3>
+			<p>Each of your weapon tiles will destroy all enemy tiles they share a square with. If you manage to eliminate an oponent, you'll be rewarded with energy.</p>
 		</div>
 	</div>
 	<script>
@@ -102,7 +186,8 @@ var keys = {
 	b: false,
 	f: false,
 	w: false,
-	d: false
+	d: false,
+	enter: false
 };
 
 var debugLog = "";
@@ -121,7 +206,8 @@ function debug(a, b) {
 	return a;
 }
 
-function easeInOutCubic(t) { return t<0.5 ? 4*t*t*t : (t-1)*(2*t-2)*(2*t-2)+1; }
+function easeInOutCubic(t) {return t<0.5 ? 4*t*t*t : (t-1)*(2*t-2)*(2*t-2)+1;}
+function easeOutCubic(t) {return (--t)*t*t+1;}
 
 function clearCanvas() {
 	ctx.fillStyle = "black";
@@ -183,6 +269,7 @@ var Bot;
 var GameOver;
 var Playing;
 var Setup;
+var HowToPlay;
 var Menu;
 
 ////////////////////////////////////   Objects
@@ -406,6 +493,11 @@ GameOver.prototype.update = function() {
 
 Playing = function(model) {
 	this.model = model;
+	var bots = [];
+	while(model.bots.length > 0) {
+		bots.push(model.bots.splice(Math.floor(Math.random() * model.bots.length), 1)[0]);
+	}
+	this.model.bots = bots;
 	this.botInFocus = 0;
 	
 	// Infobar
@@ -415,8 +507,8 @@ Playing = function(model) {
 	};
 	
 	this.arena = {
-		w: 20,
-		h: 20
+		w: 30,
+		h: 30
 	};
 	
 	this.camera = {
@@ -427,6 +519,10 @@ Playing = function(model) {
 	this.zoomMultiplier = 1.2;
 	this.maxZoom = 70;
 	this.minZoom = 20;
+	
+	// Move camera to new bot
+	this.camera.x = this.model.bots[0].pos.x;
+	this.camera.y = this.model.bots[0].pos.y;
 	
 	this.ms = {
 		x: mouse.x,
@@ -457,7 +553,7 @@ Playing.prototype.drawEverything = function() {
 	scale(this.camera.zoom);
 	ctx.translate(-this.camera.x, -this.camera.y);
 	// Draw dot grid
-	ctx.fillStyle = "dimgrey";
+	ctx.fillStyle = "grey";
 	for(var x = 0; x <= this.arena.w; x++) {
 		for(var y = 0; y <= this.arena.h; y++) {
 			ctx.fillRect(x - 0.04, y - 0.04, 0.08, 0.08);
@@ -472,7 +568,7 @@ Playing.prototype.drawEverything = function() {
 	// Undo camera
 	ctx.restore();
 	// Fade everything drawn so far into the background a little
-	ctx.globalAlpha = 0.7;
+	ctx.globalAlpha = 0.5;
 	clearCanvas();
 	ctx.globalAlpha = 1;
 	// Camera
@@ -523,6 +619,10 @@ Playing.prototype.nextTurn = function() {
 	this.model.bots.splice(0, 1);
 	this.model.bots.push(bot);
 	newBot = this.model.bots[0];
+	
+	// Move camera to new bot
+	this.camera.x = newBot.pos.x;
+	this.camera.y = newBot.pos.y;
 	
 	// Finish unfinished tiles
 	for(i in newBot.map.cellArr) {
@@ -653,10 +753,14 @@ Playing.prototype.update = function() {
 
 Setup = function() {
 	this.model = new Model();
-	l("overlay-div").style.display = "block";
+	l("name-input-overlay").style.display = "block";
+	this.step = "names";
+	this.menuButtonHovered = false;
+	this.nameLabels = [];
+	this.colorSliders = [];
 };
 
-Setup.prototype.readInput = function() {
+Setup.prototype.readNames = function() {
 	var input = l("name_input").value;
 	var names = input.split("\n");
 	var numOfEmptyLines = 0;
@@ -666,32 +770,128 @@ Setup.prototype.readInput = function() {
 		}
 	}
 	if(numOfEmptyLines > 1) {
-		var numNames = names.length - numOfEmptyLines;
-		var hues = [];
-		var startHue = Math.random() * 360;
-		for(i = 0; i < numNames; i++) {
-			hues.push(startHue + i * 360 / numNames);
-		}
-		var hueIndex = 0;
 		for(i = 0; i < names.length; i++) {
 			if(names[i] !== "") {
-				this.model.bots.push(new Bot(Math.floor(Math.random() * 20), Math.floor(Math.random() * 20), hues[hueIndex++], names[i]));
+				this.model.bots.push(new Bot(Math.floor(Math.random() * 20), Math.floor(Math.random() * 20), Math.random() * 360, names[i]));
 			}
 		}
-		l("overlay-div").style.display = "none";
+		
+		// Switch to and setup next setup page
+		l("name-input-overlay").style.display = "none";
+		l("color-input-overlay").style.display = "block";
+		var container = l("color-form-container");
+		container.innerHTML = "";
+		for(i in this.model.bots) {
+			var newLabel = document.createElement('label');
+			newLabel.innerHTML = this.model.bots[i].name;
+			var newSlider = document.createElement('input');
+			newSlider.type = "range";
+			newSlider.min = "0";
+			newSlider.max = "360";
+			newSlider.value = Math.random() * 360;
+			this.nameLabels.push(newLabel);
+			this.colorSliders.push(newSlider);
+			var newRow = document.createElement('div');
+			newRow.className = "color-row";
+			newRow.appendChild(newLabel);
+			newRow.appendChild(newSlider);
+			container.appendChild(newRow);
+		}
+		this.step = "colors";
+	}
+};
+
+Setup.prototype.readColors = function() {
+	for(var i in this.colorSliders) {
+		this.model.bots[i].color = "hsl(" + this.colorSliders[i].value + ",100%,50%)";
+		this.nameLabels[i].style.color = this.model.bots[i].color;
+	}
+	if(keys.enter) {
+		l("color-input-overlay").style.display = "none";
 		state = new Playing(this.model);
 	}
 };
 
+Setup.prototype.menuButton = function() {
+	ctx.font = "70px Arcade";
+	ctx.fillStyle = "white";
+	ctx.textAlign = "center";
+	ctx.save();
+	ctx.translate(150, 70);
+	if(this.menuButtonHovered && !mouse.click) {
+		scale(1.2);
+	}
+	this.menuButtonHovered = !this.menuButtonHovered;
+	ctx.fillText("<menu", 0, 35);
+	ctx.restore();
+	
+	if(mouse.x > 50 && mouse.x < 250 && mouse.y > 50 && mouse.y < 120) {
+		this.menuButtonHovered = true;
+	} else {
+		this.menuButtonHovered = false;
+	}
+	if(this.menuButtonHovered && mouse.click) {
+		state = new Menu();
+		l("name-input-overlay").style.display = "none";
+		l("color-input-overlay").style.display = "none";
+	}
+};
+
 Setup.prototype.update = function() {
-	this.readInput();
+	switch(this.step) {
+		case "names":
+			this.readNames();
+			break;
+		case "colors":
+			this.readColors();
+			break;
+	}
 	clearCanvas();
+	this.menuButton();
+};
+
+
+
+HowToPlay = function() {
+	clearCanvas();
+	l("instructions-overlay").style.display = "block";
+	this.menuButtonHovered = false;
+};
+
+HowToPlay.prototype.menuButton = function() {
+	ctx.font = "70px Arcade";
+	ctx.fillStyle = "white";
+	ctx.textAlign = "center";
+	ctx.save();
+	ctx.translate(150, 70);
+	if(this.menuButtonHovered && !mouse.click) {
+		scale(1.2);
+	}
+	this.menuButtonHovered = !this.menuButtonHovered;
+	ctx.fillText("<menu", 0, 35);
+	ctx.restore();
+	
+	if(mouse.x > 50 && mouse.x < 250 && mouse.y > 50 && mouse.y < 120) {
+		this.menuButtonHovered = true;
+	} else {
+		this.menuButtonHovered = false;
+	}
+	if(this.menuButtonHovered && mouse.click) {
+		state = new Menu();
+		l("instructions-overlay").style.display = "none";
+	}
+};
+
+HowToPlay.prototype.update = function() {
+	clearCanvas();
+	this.menuButton();
 };
 
 
 
 Menu = function() {
 	this.playButtonHovered = false;
+	this.howToPlayHovered = false;
 };
 
 Menu.prototype.draw = function() {
@@ -703,18 +903,25 @@ Menu.prototype.draw = function() {
 	ctx.textAlign = "center";
 	ctx.fillText("Tilebots", 0, -70);
 	ctx.font = "100px Arcade";
-	ctx.translate(0, 60);
+	ctx.translate(0, 20);
+	ctx.save();
 	if(this.playButtonHovered && !mouse.click) {
 		ctx.scale(1.2, 1.2);
 	}
 	ctx.fillText("Play", 0, 40);
+	ctx.restore();
+	ctx.translate(0, 100);
+	if(this.howToPlayHovered && !mouse.click) {
+		ctx.scale(1.2, 1.2);
+	}
+	ctx.fillText("How to Play", 0, 40);
 	ctx.restore();
 };
 
 Menu.prototype.playButton = function() {
 	var x = mouse.x - canvas.width / 2;
 	var y = mouse.y - canvas.height / 2;
-	if(x > -100 && x < 100 && y > 15 && y < 105) {
+	if(x > -100 && x < 100 && y > -25 && y < 65) {
 		this.playButtonHovered = true;
 	} else {
 		this.playButtonHovered = false;
@@ -725,8 +932,23 @@ Menu.prototype.playButton = function() {
 	}
 };
 
+Menu.prototype.howToPlayButton = function() {
+	var x = mouse.x - canvas.width / 2;
+	var y = mouse.y - canvas.height / 2;
+	if(x > -280 && x < 280 && y > 75 && y < 165) {
+		this.howToPlayHovered = true;
+	} else {
+		this.howToPlayHovered = false;
+	}
+	
+	if(this.howToPlayHovered && mouse.click) {
+		state = new HowToPlay();
+	}
+};
+
 Menu.prototype.update = function() {
 	this.playButton();
+	this.howToPlayButton();
 	this.draw();
 };
 
@@ -752,13 +974,18 @@ function draw() {
 
 ////////////////////////////////////   Event Handlers
 
+window.addEventListener('mousemove', function(e) {
+	var rect = canvas.getBoundingClientRect();
+	mouse.x = e.clientX - rect.left;
+	mouse.y = e.clientY - rect.top;
+}, false);
 canvas.addEventListener('mousemove', function(e) {
 	var rect = canvas.getBoundingClientRect();
 	mouse.x = e.clientX - rect.left;
 	mouse.y = e.clientY - rect.top;
 }, false);
 
-canvas.addEventListener('click', function(e) {
+window.addEventListener('click', function(e) {
 	mouse.click = true;
 }, false);
 
@@ -791,6 +1018,9 @@ window.addEventListener('keydown', function(e) {
 			break;
 		case 68:
 			keys.d = true;
+			break;
+		case 13:
+			keys.enter = true;
 			break;
 		default:
 			prevent = false;
