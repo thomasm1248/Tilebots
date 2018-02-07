@@ -522,6 +522,19 @@ Playing = function(model) {
 	this.maxZoom = 70;
 	this.minZoom = 20;
 	
+	// Camera animation
+	this.camIsAnimating = false;
+	this.camPos1 = {
+		x: 0,
+		y: 0
+	};
+	this.camPos2 = {
+		x: 0,
+		y: 0
+	};
+	this.camPercent = 0;
+	this.camPercentPerFrame = 0.02;
+	
 	this.ms = {
 		x: mouse.x,
 		y: mouse.y
@@ -621,8 +634,12 @@ Playing.prototype.nextTurn = function() {
 	
 	// Move camera to new bot
 	if(newBot.placed) {
-		this.camera.x = newBot.pos.x;
-		this.camera.y = newBot.pos.y;
+		this.camPos1.x = this.camera.x;
+		this.camPos1.y = this.camera.y;
+		this.camPos2.x = newBot.pos.x;
+		this.camPos2.y = newBot.pos.y;
+		this.camPercent = 0;
+		this.camIsAnimating = true;
 	}
 	
 	// Finish unfinished tiles
@@ -755,6 +772,20 @@ Playing.prototype.update = function() {
 			this.drawGameOverScreen();
 			break;*/
 	}
+	// Animate camera
+	if(this.camIsAnimating) {
+		this.camPercent += this.camPercentPerFrame;
+		if(this.camPercent > 1) {
+			this.camIsAnimating = false;
+			this.camera.x = this.camPos2.x;
+			this.camera.y = this.camPos2.y;
+		} else {
+			var newCamPos = addV(this.camPos1, scaleV(vToV(this.camPos1, this.camPos2), easeOutCubic(this.camPercent)));
+			this.camera.x = newCamPos.x;
+			this.camera.y = newCamPos.y;
+		}
+	}
+	
 	// Draw Everything
 	this.drawEverything();
 	
