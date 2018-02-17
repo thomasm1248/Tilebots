@@ -145,7 +145,7 @@ body {
 			<h3>Movement Phase</h3>
 			<p>To end your turn, click on your head tile to stay where you are, or click a movement tile to move your robot there.</p>
 			<h3>Attack Phase</h3>
-			<p>Each of your weapon tiles will destroy all enemy tiles they share a square with. If you manage to eliminate an oponent, you'll be rewarded with energy.</p>
+			<p>Each of your weapon tiles will destroy all enemy tiles they share a square with. You get one energy for every enemy tile you destroy.</p>
 		</div>
 	</div>
 	<script>
@@ -381,7 +381,10 @@ Bot.prototype.beAttacked = function(attackPoints) {
 		this.map.set(coords.x, coords.y, "");
 	}
 	count += this.removeExtra();
-	return this.map.get(0, 0) === "head" ? 0 : count;
+	return {
+		count: count,
+		dead: this.map.get(0, 0) !== "head"
+	};
 };
 
 Bot.prototype.drawTile = function(tile) {
@@ -620,8 +623,8 @@ Playing.prototype.nextTurn = function() {
 	var attackPoints = bot.getAttackPoints();
 	for(i = 1; i < this.model.bots.length; i++) {
 		var score = this.model.bots[i].beAttacked(attackPoints);
-		if(score) {
-			bot.energy += score;
+		bot.energy += score.count;
+		if(score.dead) {
 			this.model.bots.splice(i, 1);
 			i--;
 		}
