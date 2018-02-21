@@ -131,7 +131,7 @@ body {
 			<p>The solid tile is your robot's head. If it is destroyed, your robot is eliminated from the game. This tile marks the center of your robot.</p>
 			<p>The empty tile is a body tile. It costs 1 energy, and does nothing.</p>
 			<p>The tile with another square in it is a foot tile. It costs 2 energy, and can't be used until your next turn.</p>
-			<p>The tile with an X in it is a weapon tile. It costs 2 energy, and like the movement tile, it can't be used until your next turn.</p>
+			<p>The tile with an X in it is a weapon tile. It costs 2 energy, and like the foot tile, it can't be used until your next turn.</p>
 			<p>Tiles that can't be used until your next turn are marked with a cross:</p>
 			<img src="locked-tiles-example.png"/>
 			<h2>Setup</h2>
@@ -139,13 +139,13 @@ body {
 			<h2>On Your turn</h2>
 			<p>Use the +/- buttons to zoom in/out. Scroll to move the camera.</p>
 			<h3>Start Phase</h3>
-			<p>You begin your turn by recieving some energy. You'll get 3 energy, with a max of 6. If you have 6 or more energy, you wont get any this turn.</p>
+			<p>You begin your turn by recieving some energy. You'll get 3 energy, with a max of 6. If you have 6 or more energy, you won't get any this turn.</p>
 			<h3>Editing Phase</h3>
 			<p>If you're taking your first turn, you have to place your head tile. Then your turn ends. Otherwise, you can edit your robot by hovering the mouse over an empty spot or another tile, then press "b", "f", or "w" to place a body, foot, or weapon tile there. You can replace other tiles by placing new tiles over them, but you won't get a refund.</p>
 			<h3>Movement Phase</h3>
 			<p>To end your turn, click on your head tile to stay where you are, or click a movement tile to move your robot there.</p>
 			<h3>Attack Phase</h3>
-			<p>Each of your weapon tiles will destroy all enemy tiles they share a square with. If you manage to eliminate an oponent, you'll be rewarded with energy.</p>
+			<p>Each of your weapon tiles will destroy all enemy tiles they share a square with. You get one energy for every enemy tile you destroy.</p>
 		</div>
 	</div>
 	<script>
@@ -381,7 +381,10 @@ Bot.prototype.beAttacked = function(attackPoints) {
 		this.map.set(coords.x, coords.y, "");
 	}
 	count += this.removeExtra();
-	return this.map.get(0, 0) === "head" ? 0 : count;
+	return {
+		count: count,
+		dead: this.map.get(0, 0) !== "head"
+	};
 };
 
 Bot.prototype.drawTile = function(tile) {
@@ -522,6 +525,19 @@ Playing = function(model) {
 	this.maxZoom = 70;
 	this.minZoom = 20;
 	
+	// Camera animation
+	this.camIsAnimating = false;
+	this.camPos1 = {
+		x: 0,
+		y: 0
+	};
+	this.camPos2 = {
+		x: 0,
+		y: 0
+	};
+	this.camPercent = 0;
+	this.camPercentPerFrame = 0.02;
+	
 	this.ms = {
 		x: mouse.x,
 		y: mouse.y
@@ -607,8 +623,8 @@ Playing.prototype.nextTurn = function() {
 	var attackPoints = bot.getAttackPoints();
 	for(i = 1; i < this.model.bots.length; i++) {
 		var score = this.model.bots[i].beAttacked(attackPoints);
-		if(score) {
-			bot.energy += score;
+		bot.energy += score.count;
+		if(score.dead) {
 			this.model.bots.splice(i, 1);
 			i--;
 		}
@@ -621,8 +637,12 @@ Playing.prototype.nextTurn = function() {
 	
 	// Move camera to new bot
 	if(newBot.placed) {
-		this.camera.x = newBot.pos.x;
-		this.camera.y = newBot.pos.y;
+		this.camPos1.x = this.camera.x;
+		this.camPos1.y = this.camera.y;
+		this.camPos2.x = newBot.pos.x;
+		this.camPos2.y = newBot.pos.y;
+		this.camPercent = 0;
+		this.camIsAnimating = true;
 	}
 	
 	// Finish unfinished tiles
@@ -663,6 +683,10 @@ Playing.prototype.followControls = function() {
 	// View movement
 	this.camera.x += mouse.dx / this.camera.zoom;
 	this.camera.y += mouse.dy / this.camera.zoom;
+	if(this.camera.x < 0) this.camera.x = 0;
+	if(this.camera.x > this.arena.w) this.camera.x = this.arena.w;
+	if(this.camera.y < 0) this.camera.y = 0;
+	if(this.camera.y > this.arena.h) this.camera.y = this.arena.h;
 	// Zoom
 	if(keys.plus && this.camera.zoom < this.maxZoom) {
 		this.camera.zoom *= this.zoomMultiplier;
@@ -751,6 +775,20 @@ Playing.prototype.update = function() {
 			this.drawGameOverScreen();
 			break;*/
 	}
+	// Animate camera
+	if(this.camIsAnimating) {
+		this.camPercent += this.camPercentPerFrame;
+		if(this.camPercent > 1) {
+			this.camIsAnimating = false;
+			this.camera.x = this.camPos2.x;
+			this.camera.y = this.camPos2.y;
+		} else {
+			var newCamPos = addV(this.camPos1, scaleV(vToV(this.camPos1, this.camPos2), easeOutCubic(this.camPercent)));
+			this.camera.x = newCamPos.x;
+			this.camera.y = newCamPos.y;
+		}
+	}
+	
 	// Draw Everything
 	this.drawEverything();
 	
@@ -1009,9 +1047,10 @@ canvas.addEventListener('mousewheel', function(e) {
 window.addEventListener('keydown', function(e) {
 	var prevent = true;
 	switch(e.keyCode) {
-		case 32:
+		// For debugging:
+		/*case 32:
 			debug();
-			break;
+			break;*/
 		case 187:
 			keys.plus = true;
 			break;
