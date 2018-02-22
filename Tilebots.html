@@ -807,6 +807,22 @@ Setup = function() {
 	this.menuButtonHovered = false;
 	this.nameLabels = [];
 	this.colorSliders = [];
+	this.maxNameLength = 12;
+};
+
+Setup.prototype.limitNameLengths = function() {
+	var input = l("name_input");
+	var names = input.value.split("\n");
+	for(var i in names) {
+		if(names[i].length > this.maxNameLength) {
+			names[i] = names[i].substring(0, this.maxNameLength);
+		}
+	}
+	input.value = "";
+	for(i in names) {
+		input.value += "\n" + names[i];
+	}
+	input.value = input.value.substring(1);
 };
 
 Setup.prototype.readNames = function() {
@@ -889,6 +905,7 @@ Setup.prototype.menuButton = function() {
 Setup.prototype.update = function() {
 	switch(this.step) {
 		case "names":
+			this.limitNameLengths();
 			this.readNames();
 			break;
 		case "colors":
