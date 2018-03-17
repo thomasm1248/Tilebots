@@ -466,10 +466,14 @@ Bot.prototype.withinBounds = function(coords) {
 	return true;
 };
 
-Bot.prototype.draw = function() {
+Bot.prototype.draw = function(fixed) {
 	if(!this.placed) return;
 	ctx.save();
-	translate(this.pos);
+	if(!fixed) {
+		translate(this.pos);
+	} else {
+		ctx.translate(-0.5, -0.5);
+	}
 	ctx.fillStyle = this.color;
 	ctx.strokeStyle = this.color;
 	ctx.lineWidth = 0.04;
@@ -483,15 +487,6 @@ Bot.prototype.draw = function() {
 
 Model = function() {
 	this.bots = [];
-};
-
-
-
-GameOver = function() {
-};
-
-GameOver.prototype.update = function() {
-	
 };
 
 
@@ -548,14 +543,21 @@ Playing = function(model) {
 			* editing
 			* move animation
 			* attack animation
+			* game over
 	*/
 	
-	this.speedMultiplier = 0.05;
-	this.startPos = {};
-	this.endPos = {};
-	this.vToGoal = {};
-	this.cPerFrame = 0;
-	this.currentProgress = 0;
+	// Game over transition animation
+	this.fadeProgress = 0;
+	this.fadeSpeed = 0.02;
+	
+	// Game over winner center
+	this.scale = 0;
+	this.offsetX = 0;
+	this.offsetY = 0;
+	this.size = 300;
+	
+	// Menu button
+	this.menuButtonHovered = false;
 };
 
 Playing.prototype.drawEverything = function() {
@@ -576,7 +578,7 @@ Playing.prototype.drawEverything = function() {
 	// Draw all the bots
 	for(var i in this.model.bots) {
 		if(i !== this.botInFocus) {
-			this.model.bots[i].draw();
+			this.model.bots[i].draw(false);
 		}
 	}
 	// Undo camera
@@ -591,7 +593,7 @@ Playing.prototype.drawEverything = function() {
 	scale(this.camera.zoom);
 	ctx.translate(-this.camera.x, -this.camera.y);
 	// Draw focused bot
-	this.model.bots[this.botInFocus].draw();
+	this.model.bots[this.botInFocus].draw(false);
 	// Undo Camera
 	ctx.restore();
 	// Draw Infobar
@@ -610,7 +612,6 @@ Playing.prototype.drawEverything = function() {
 Playing.prototype.nextTurn = function() {
 	// Make it easier to access main bot
 	var bot = this.model.bots[0];
-	debug(bot.pos);
 	
 	// Cut anything off bot that isn't within bounds
 	for(var i in bot.map.cellArr) {
@@ -749,13 +750,61 @@ Playing.prototype.animateMovement = function() {
 };
 
 Playing.prototype.drawGameOverScreen = function() {
+	// Clear
 	clearCanvas();
+	
+	// Background
+	this.drawEverything();
+	
+	// Fade
+	ctx.fillStyle = "black";
+	ctx.globalAlpha = this.fadeProgress;
+	ctx.fillRect(0, 0, canvas.width, canvas.height);
+	
+	// Foreground
 	ctx.save();
 	ctx.translate(canvas.width / 2, canvas.height / 2);
-	scale(20);
-	ctx.translate(-0.5, -0.5);
-	this.model.bots[0].draw();
+	ctx.save();
+	ctx.translate(0, 100);
+	scale(this.scale);
+	ctx.translate(this.offsetX, this.offsetY);
+	this.model.bots[0].draw(true);
 	ctx.restore();
+	ctx.fillStyle = "white";
+	ctx.textAlign = "center";
+	ctx.font = "150px Arcade";
+	ctx.fillText(this.model.bots[0].name + " Won!", 0, -100);
+	ctx.restore();
+	ctx.globalAlpha = 1;
+	
+	// Update fade progress
+	if(this.fadeProgress < 1) {
+		this.fadeProgress += this.fadeSpeed;
+	}
+};
+
+Playing.prototype.menuButton = function() {
+	ctx.font = "70px Arcade";
+	ctx.fillStyle = "white";
+	ctx.textAlign = "center";
+	ctx.save();
+	ctx.translate(150, 70);
+	if(this.menuButtonHovered && !mouse.click) {
+		scale(1.2);
+	}
+	this.menuButtonHovered = !this.menuButtonHovered;
+	ctx.fillText("<menu", 0, 35);
+	ctx.restore();
+	
+	if(mouse.x > 50 && mouse.x < 250 && mouse.y > 50 && mouse.y < 120) {
+		this.menuButtonHovered = true;
+	} else {
+		this.menuButtonHovered = false;
+	}
+	if(this.menuButtonHovered && mouse.click) {
+		state = new Menu();
+		l("instructions-overlay").style.display = "none";
+	}
 };
 
 Playing.prototype.update = function() {
@@ -767,13 +816,41 @@ Playing.prototype.update = function() {
 			this.ms = snapV(this.ms);
 			// Let user interfere
 			this.followControls();
+			// Draw
+			this.drawEverything();
+			// End game if only one bot remains
+			if(this.model.bots.length === 1) {
+				var minX = 0;
+				var maxX = 0;
+				var minY = 0;
+				var maxY = 0;
+				var bot = this.model.bots[0];
+				for(var i in bot.map.cellArr) {
+					var x = bot.map.cellArr[i].coords.x;
+					var y = bot.map.cellArr[i].coords.y;
+					minX = x < minX ? x : minX;
+					maxX = x > maxX ? x : maxX;
+					minY = y < minY ? y : minY;
+					maxY = y > maxY ? y : maxY;
+				}
+				var diffX = maxX - minX + 1;
+				var diffY = maxY - minY + 1;
+				this.scale = this.size / (diffX > diffY ? diffX : diffY);
+				this.offsetX = -((minX + maxX) / 2);
+				this.offsetY = -((minY + maxY) / 2);
+				
+				this.subState = "game over";
+			}
 			break;
 		case "move animation":
 			this.animateMovement();
+			// Draw
+			this.drawEverything();
 			break;
-		/*case "game over":
+		case "game over":
 			this.drawGameOverScreen();
-			break;*/
+			this.menuButton();
+			break;
 	}
 	// Animate camera
 	if(this.camIsAnimating) {
@@ -789,13 +866,6 @@ Playing.prototype.update = function() {
 		}
 	}
 	
-	// Draw Everything
-	this.drawEverything();
-	
-	/*// End game if only one bot remains
-	if(this.model.bots.length === 1) {
-		this.subState = "game over";
-	}*/
 };
 
 
@@ -803,6 +873,7 @@ Playing.prototype.update = function() {
 Setup = function() {
 	this.model = new Model();
 	l("name-input-overlay").style.display = "block";
+	l("name_input").value = "";
 	this.step = "names";
 	this.menuButtonHovered = false;
 	this.nameLabels = [];
