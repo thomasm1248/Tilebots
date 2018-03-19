@@ -272,6 +272,11 @@ var Setup;
 var HowToPlay;
 var Menu;
 
+var sounds = {
+	click: new Audio("zapsplat sounds/multimedia_button_click_017.mp3"),
+	moving: new Audio("zapsplat sounds/noisecreations_SFX-NCFREE02_RaisingPlatform-Machinery-Drone.mp3")
+};
+
 ////////////////////////////////////   Objects
 
 
@@ -546,6 +551,14 @@ Playing = function(model) {
 			* game over
 	*/
 	
+	// Bot animation
+	this.speedMultiplier = 0.030;
+	this.startPos = {};
+	this.endPos = {};
+	this.vToGoal = {};
+	this.cPerFrame = 0;
+	this.currentProgress = 0;
+	
 	// Game over transition animation
 	this.fadeProgress = 0;
 	this.fadeSpeed = 0.02;
@@ -670,32 +683,19 @@ Playing.prototype.nextTurn = function() {
 };
 
 Playing.prototype.movementPhase = function(newPos) {
-	this.startPos.x = this.model.bots[0].pos.x;
+	this.startPos.x = this.model.bots[0].pos.x;//a
 	this.startPos.y = this.model.bots[0].pos.y;
 	this.endPos = newPos;
 	this.vToGoal = vToV(this.startPos, this.endPos);
 	var distToGoal = getDist(this.startPos, this.endPos);
 	this.cPerFrame = 1 / distToGoal * this.speedMultiplier;
 	this.currentProgress = 0;
+	sounds.moving.currentTime = 0;
+	sounds.moving.play();
 	this.subState = "move animation";
 };
 
 Playing.prototype.followControls = function() {
-	// View movement
-	this.camera.x += mouse.dx / this.camera.zoom;
-	this.camera.y += mouse.dy / this.camera.zoom;
-	if(this.camera.x < 0) this.camera.x = 0;
-	if(this.camera.x > this.arena.w) this.camera.x = this.arena.w;
-	if(this.camera.y < 0) this.camera.y = 0;
-	if(this.camera.y > this.arena.h) this.camera.y = this.arena.h;
-	// Zoom
-	if(keys.plus && this.camera.zoom < this.maxZoom) {
-		this.camera.zoom *= this.zoomMultiplier;
-	}
-	if(keys.minus && this.camera.zoom > this.minZoom) {
-		this.camera.zoom /= this.zoomMultiplier;
-	}
-	
 	// Variable for current bot
 	var bot = this.model.bots[0];
 	
@@ -705,12 +705,15 @@ Playing.prototype.followControls = function() {
 		if((coords.x !== 0 || coords.y !== 0) && bot.canConnect(coords) && bot.withinBounds(coords)) {
 			if(keys.b && bot.energy >= 1 && bot.map.get(coords.x, coords.y) !== "body") {
 				bot.map.set(coords.x, coords.y, "body");
+				sounds.click.play();
 				bot.energy--;
 			} else if(keys.w && bot.energy >= 2 && bot.map.get(coords.x, coords.y) !== "weapon" && bot.map.get(coords.x, coords.y) !== "unfinished weapon") {
 				bot.map.set(coords.x, coords.y, "unfinished weapon");
+				sounds.click.play();
 				bot.energy -= 2;
 			} else if(keys.f && bot.energy >= 2 && bot.map.get(coords.x, coords.y) !== "foot" && bot.map.get(coords.x, coords.y) !== "unfinished foot") {
 				bot.map.set(coords.x, coords.y, "unfinished foot");
+				sounds.click.play();
 				bot.energy -= 2;
 			} else if(keys.d) {
 				bot.map.set(coords.x, coords.y, "");
@@ -726,14 +729,17 @@ Playing.prototype.followControls = function() {
 			coords = vToV(bot.pos, this.ms);
 			var tileClicked = bot.map.get(coords.x, coords.y);
 			if(tileClicked === "head") {
+				sounds.click.play();
 				this.nextTurn();
 			} else if(tileClicked === "foot") {
+				sounds.click.play();
 				this.movementPhase(addV(bot.pos, coords));
 			}
 		} else if(this.ms.x >= 0 && this.ms.y >= 0 && this.ms.x < this.arena.w && this.ms.y < this.arena.h) {
 			bot.pos.x = this.ms.x;
 			bot.pos.y = this.ms.y;
 			bot.placed = true;
+			sounds.click.play();
 			this.nextTurn();
 		}
 	}
@@ -742,10 +748,11 @@ Playing.prototype.followControls = function() {
 Playing.prototype.animateMovement = function() {
 	this.currentProgress += this.cPerFrame;
 	if(this.currentProgress > 1) {
+		sounds.moving.pause();
 		this.model.bots[0].pos = this.endPos;
 		this.nextTurn();
 	} else {
-		this.model.bots[0].pos = addV(this.startPos, scaleV(this.vToGoal, easeInOutCubic(this.currentProgress)));
+		this.model.bots[0].pos = addV(this.startPos, scaleV(this.vToGoal, this.currentProgress));
 	}
 };
 
@@ -802,6 +809,7 @@ Playing.prototype.menuButton = function() {
 		this.menuButtonHovered = false;
 	}
 	if(this.menuButtonHovered && mouse.click) {
+		sounds.click.play();
 		state = new Menu();
 		l("instructions-overlay").style.display = "none";
 	}
@@ -865,7 +873,20 @@ Playing.prototype.update = function() {
 			this.camera.y = newCamPos.y;
 		}
 	}
-	
+	// Move camera
+	this.camera.x += mouse.dx / this.camera.zoom;
+	this.camera.y += mouse.dy / this.camera.zoom;
+	if(this.camera.x < 0) this.camera.x = 0;
+	if(this.camera.x > this.arena.w) this.camera.x = this.arena.w;
+	if(this.camera.y < 0) this.camera.y = 0;
+	if(this.camera.y > this.arena.h) this.camera.y = this.arena.h;
+	// Zoom
+	if(keys.plus && this.camera.zoom < this.maxZoom) {
+		this.camera.zoom *= this.zoomMultiplier;
+	}
+	if(keys.minus && this.camera.zoom > this.minZoom) {
+		this.camera.zoom /= this.zoomMultiplier;
+	}
 };
 
 
@@ -913,6 +934,7 @@ Setup.prototype.readNames = function() {
 		}
 		
 		// Switch to and setup next setup page
+		sounds.click.play();
 		l("name-input-overlay").style.display = "none";
 		l("color-input-overlay").style.display = "block";
 		var container = l("color-form-container");
@@ -943,6 +965,7 @@ Setup.prototype.readColors = function() {
 		this.nameLabels[i].style.color = this.model.bots[i].color;
 	}
 	if(keys.enter) {
+		sounds.click.play();
 		l("color-input-overlay").style.display = "none";
 		state = new Playing(this.model);
 	}
@@ -967,6 +990,7 @@ Setup.prototype.menuButton = function() {
 		this.menuButtonHovered = false;
 	}
 	if(this.menuButtonHovered && mouse.click) {
+		sounds.click.play();
 		state = new Menu();
 		l("name-input-overlay").style.display = "none";
 		l("color-input-overlay").style.display = "none";
@@ -1014,6 +1038,7 @@ HowToPlay.prototype.menuButton = function() {
 		this.menuButtonHovered = false;
 	}
 	if(this.menuButtonHovered && mouse.click) {
+		sounds.click.play();
 		state = new Menu();
 		l("instructions-overlay").style.display = "none";
 	}
@@ -1065,6 +1090,7 @@ Menu.prototype.playButton = function() {
 	}
 	
 	if(this.playButtonHovered && mouse.click) {
+		sounds.click.play();
 		state = new Setup();
 	}
 };
@@ -1079,6 +1105,7 @@ Menu.prototype.howToPlayButton = function() {
 	}
 	
 	if(this.howToPlayHovered && mouse.click) {
+		sounds.click.play();
 		state = new HowToPlay();
 	}
 };
@@ -1136,9 +1163,9 @@ window.addEventListener('keydown', function(e) {
 	var prevent = true;
 	switch(e.keyCode) {
 		// For debugging:
-		/*case 32:
+		case 32:
 			debug();
-			break;*/
+			break;
 		case 187:
 			keys.plus = true;
 			break;
