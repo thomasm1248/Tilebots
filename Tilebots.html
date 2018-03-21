@@ -779,6 +779,7 @@ Playing.prototype.followControls = function() {
 			mouse.click = false;
 			coords = vToV(bot.pos, this.ms);
 			if(bot.map.get(coords.x, coords.y) === "head") {
+				sounds.click.play();
 				this.subState = "steer";
 			}
 		} else if(this.ms.x >= 0 && this.ms.y >= 0 && this.ms.x < this.arena.w && this.ms.y < this.arena.h) {
