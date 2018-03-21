@@ -136,9 +136,9 @@ body {
 			<p>There are four tiles you can make your robot from:</p>
 			<img src="tiles-example.png"/>
 			<p>The solid tile is your robot's head. If it is destroyed, your robot is eliminated from the game. This tile marks the center of your robot.</p>
-			<p>The empty tile is a body tile. It costs 1 energy, and does nothing.</p>
-			<p>The tile with another square in it is a foot tile. It costs 2 energy, and can't be used until your next turn.</p>
-			<p>The tile with an X in it is a weapon tile. It costs 2 energy, and like the foot tile, it can't be used until your next turn.</p>
+			<p>The empty tile is a body tile. It does nothing.</p>
+			<p>The tile with another square in it is a foot tile. It can't be used until your next turn.</p>
+			<p>The tile with an X in it is a weapon tile. It can't be used until your next turn.</p>
 			<p>Tiles that can't be used until your next turn are marked with a cross:</p>
 			<img src="locked-tiles-example.png"/>
 			<h2>Setup</h2>
@@ -148,9 +148,9 @@ body {
 			<h3>Start Phase</h3>
 			<p>You begin your turn by recieving some energy. You'll get 3 energy, with a max of 6. If you have 6 or more energy, you won't get any this turn.</p>
 			<h3>Editing Phase</h3>
-			<p>If you're taking your first turn, you have to place your head tile. Then your turn ends. Otherwise, you can edit your robot by hovering the mouse over an empty spot or another tile, then press "b", "f", or "w" to place a body, foot, or weapon tile there. You can replace other tiles by placing new tiles over them, but you won't get a refund.</p>
+			<p>If you're taking your first turn, you have to place your head tile. Then your turn ends. Otherwise, you can make your robot bigger by clicking on empty squares to place body tiles. Any tile can be changed to foot/weapon tile by clicking on them. Both of these actions cost 1 energy, except changing an unfinished tile to another unfinished tile.</p>
 			<h3>Movement Phase</h3>
-			<p>To end your turn, click on your head tile to stay where you are, or click a movement tile to move your robot there.</p>
+			<p>To finish your turn, click on your head tile. Doing so will put you in movement phase. You can then click on your head tile to stay put, or you can click one of your foot tiles to move the center of your robot there.</p>
 			<h3>Attack Phase</h3>
 			<p>Each of your weapon tiles will destroy all enemy tiles they share a square with. You get one energy for every enemy tile you destroy.</p>
 		</div>
@@ -487,6 +487,21 @@ Bot.prototype.withinBounds = function(coords) {
 	return true;
 };
 
+Bot.prototype.drawSteeringTiles = function() {
+	ctx.save();
+	translate(this.pos);
+	ctx.fillStyle = this.color;
+	ctx.strokeStyle = this.color;
+	ctx.lineWidth = 0.04;
+	for(var i in this.map.cellArr) {
+		var tile = this.map.cellArr[i].value;
+		if(tile === "head" || tile === "foot") {
+			this.drawTile(this.map.cellArr[i]);
+		}
+	}
+	ctx.restore();
+};
+
 Bot.prototype.draw = function(fixed) {
 	if(!this.placed) return;
 	ctx.save();
@@ -606,7 +621,7 @@ Playing.prototype.drawEverything = function() {
 	}
 	// Draw all the bots
 	for(var i in this.model.bots) {
-		if(i !== this.botInFocus) {
+		if(i !== this.botInFocus || this.subState === "steer") {
 			this.model.bots[i].draw(false);
 		}
 	}
@@ -622,7 +637,11 @@ Playing.prototype.drawEverything = function() {
 	scale(this.camera.zoom);
 	ctx.translate(-this.camera.x, -this.camera.y);
 	// Draw focused bot
-	this.model.bots[this.botInFocus].draw(false);
+	if(this.subState === "steer") {
+		this.model.bots[this.botInFocus].drawSteeringTiles();
+	} else {
+		this.model.bots[this.botInFocus].draw(false);
+	}
 	// Undo Camera
 	ctx.restore();
 	// Draw Infobar
@@ -718,23 +737,39 @@ Playing.prototype.followControls = function() {
 	// Edit current bot
 	var coords = vToV(bot.pos, this.ms);
 	if(bot.placed) {
-		if((coords.x !== 0 || coords.y !== 0) && bot.canConnect(coords) && bot.withinBounds(coords)) {
-			if(keys.b && bot.energy >= 1 && bot.map.get(coords.x, coords.y) !== "body") {
-				bot.map.set(coords.x, coords.y, "body");
-				sounds.click.play();
-				bot.energy--;
-			} else if(keys.w && bot.energy >= 2 && bot.map.get(coords.x, coords.y) !== "weapon" && bot.map.get(coords.x, coords.y) !== "unfinished weapon") {
-				bot.map.set(coords.x, coords.y, "unfinished weapon");
-				sounds.click.play();
-				bot.energy -= 2;
-			} else if(keys.f && bot.energy >= 2 && bot.map.get(coords.x, coords.y) !== "foot" && bot.map.get(coords.x, coords.y) !== "unfinished foot") {
-				bot.map.set(coords.x, coords.y, "unfinished foot");
-				sounds.click.play();
-				bot.energy -= 2;
-			} else if(keys.d) {
-				bot.map.set(coords.x, coords.y, "");
-				bot.removeExtra();
+		if((coords.x !== 0 || coords.y !== 0) && bot.canConnect(coords) && bot.withinBounds(coords) && mouse.click) {
+			var newTile = "";
+			var usesEnergy = false;
+			switch(bot.map.get(coords.x, coords.y)) {
+				case "":
+					newTile = "body";
+					usesEnergy = true;
+					break;
+				case "body":
+					newTile = "unfinished foot";
+					usesEnergy = true;
+					break;
+				case "foot":
+					newTile = "unfinished weapon";
+					usesEnergy = true;
+					break;
+				case "weapon":
+					newTile = "unfinished foot";
+					usesEnergy = true;
+					break;
+				case "unfinished foot":
+					newTile = "unfinished weapon";
+					break;
+				case "unfinished weapon":
+					newTile = "unfinished foot";
+					break;
 			}
+			if(!usesEnergy || bot.energy > 0) {
+				sounds.click.play();
+				bot.map.set(coords.x, coords.y, newTile);
+				if(usesEnergy) bot.energy--;
+			}
+			mouse.click = false;
 		}
 	}
 	
@@ -743,13 +778,8 @@ Playing.prototype.followControls = function() {
 		if(bot.placed) {
 			mouse.click = false;
 			coords = vToV(bot.pos, this.ms);
-			var tileClicked = bot.map.get(coords.x, coords.y);
-			if(tileClicked === "head") {
-				sounds.click.play();
-				this.nextTurn();
-			} else if(tileClicked === "foot") {
-				sounds.click.play();
-				this.movementPhase(addV(bot.pos, coords));
+			if(bot.map.get(coords.x, coords.y) === "head") {
+				this.subState = "steer";
 			}
 		} else if(this.ms.x >= 0 && this.ms.y >= 0 && this.ms.x < this.arena.w && this.ms.y < this.arena.h) {
 			bot.pos.x = this.ms.x;
@@ -757,6 +787,22 @@ Playing.prototype.followControls = function() {
 			bot.placed = true;
 			sounds.click.play();
 			this.nextTurn();
+		}
+	}
+};
+
+Playing.prototype.steer = function() {
+	var bot = this.model.bots[0];
+	if(mouse.click && mouse.y > this.infobar.height) {
+		mouse.click = false;
+		coords = vToV(bot.pos, this.ms);
+		var tileClicked = bot.map.get(coords.x, coords.y);
+		if(tileClicked === "head") {
+			sounds.click.play();
+			this.nextTurn();
+		} else if(tileClicked === "foot") {
+			sounds.click.play();
+			this.movementPhase(addV(bot.pos, coords));
 		}
 	}
 };
@@ -864,6 +910,16 @@ Playing.prototype.update = function() {
 				
 				this.subState = "game over";
 			}
+			break;
+		case "steer":
+			// Find mouse position according to map
+			this.ms.x = (mouse.x - canvas.width / 2) / this.camera.zoom + this.camera.x;
+			this.ms.y = (mouse.y - canvas.height / 2) / this.camera.zoom + this.camera.y;
+			this.ms = snapV(this.ms);
+			// Follow mouse input
+			this.steer();
+			// Draw
+			this.drawEverything();
 			break;
 		case "move animation":
 			this.animateMovement();
