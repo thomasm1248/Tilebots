@@ -682,6 +682,19 @@ Playing.prototype.drawEverything = function() {
 	ctx.translate(canvas.width / 2, canvas.height / 2);
 	scale(this.camera.zoom);
 	ctx.translate(-this.camera.x, -this.camera.y);
+	// Grapple line
+	if(this.subState === "move animation") {
+		var bot = this.model.bots[0];
+		ctx.strokeStyle = bot.cColor;
+		ctx.lineWidth = 0.04;
+		ctx.shadowColor = bot.cColor;
+		ctx.shadowBlur = 0.1;
+		ctx.beginPath();
+		ctx.moveTo(bot.pos.x + 0.5, bot.pos.y + 0.5);
+		ctx.lineTo(this.endPos.x + 0.5, this.endPos.y + 0.5);
+		ctx.rect(this.endPos.x + 0.2, this.endPos.y + 0.2, 0.6, 0.6);
+		ctx.stroke();
+	}
 	// Draw focused bot
 	if(this.subState === "steer") {
 		this.model.bots[this.botInFocus].drawSteeringTiles();
