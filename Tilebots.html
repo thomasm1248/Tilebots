@@ -41,6 +41,11 @@ body {
 	margin: 100px auto;
 }
 
+#gameoptions-container {
+	width: 400px;
+	margin: 100px auto;
+}
+
 #content-container {
 	width: 600px;
 	margin: 100px auto;
@@ -92,6 +97,32 @@ body {
 	margin-top: 20px;
 }
 
+.overlay-checkbox {
+	-webkit-appearance: none;
+	background-color: black;
+	border: 1px solid white;
+	padding: 5px;
+	width: 22px;
+	height: 22px;
+	margin-left: 10px;
+	display: inline-block;
+	position: relative;
+}
+
+.overlay-checkbox:checked:after {
+	content: '\2714';
+	font-size: 14px;
+	position: absolute;
+	top: 0;
+	left: 3px;
+	color: white;
+}
+
+.overlay-slider {
+	margin-left: 10px;
+	margin-right: 10px;
+}
+
 #name_input {
 	font-family: "Arcade";
 	font-size: 40px;
@@ -111,16 +142,25 @@ body {
 	</canvas>
 	<div class="overlay" id="name-input-overlay">
 		<div id="name-input-container">
-			<h1>Setup</h1>
-			<textarea id="name_input" spellcheck="false"></textarea>
+			<h1>Names</h1>
+			<textarea id="name_input" spellcheck="false" onclick="sounds.click.play()"></textarea>
 			<p>Press ENTER to continue</p>
 		</div>
 	</div>
 	<div class="overlay" id="color-input-overlay">
 		<div id="color-input-container">
-			<h1>Setup</h1>
+			<h1>Colors</h1>
 			<div id="color-form-container">
 			</div>
+			<p>Press ENTER to continue</p>
+		</div>
+	</div>
+	<div class="overlay" id="gameoptions-overlay">
+		<div id="gameoptions-container">
+			<h1>Options</h1>
+			<p>Track pad:<input class="overlay-checkbox" id="trackpad-checkbox" type="checkbox" onclick="sounds.click.play()"></p>
+			<p>Energy Rate:<input class="overlay-slider" id="energyrate-textbox" type="range" onclick="sounds.click.play()" min="1" max="10" value="3" step="1"><span id="energyrate-slider-value">3</span></p>
+			<p>Energy Cap:<input class="overlay-slider" id="energycap-textbox" type="range" onclick="sounds.click.play()" min="1" max="15" value="6" step="1"><span id="energycap-slider-value">3</span></p>
 			<p>Press ENTER to continue</p>
 		</div>
 	</div>
@@ -184,9 +224,6 @@ var animator =
 
 ////////////////////////////////////   Util
 
-var r2d = 180 / Math.PI;
-var d2r = Math.PI / 180;
-
 var mouse = {
 	x: 0,
 	y: 0,
@@ -210,6 +247,7 @@ function debug(a, b) {
 	if(a === undefined) {
 		var body = document.getElementById("body");
 		body.innerHTML = debugLog;
+		body.style.overflow = "scroll";
 		return;
 	} else if(b === undefined) {
 		a = new Option(JSON.stringify(a)).innerHTML; // Make text html safe
@@ -281,7 +319,7 @@ var Model;
 
 var Bot;
 
-var GameOver;
+var state;
 var Playing;
 var Setup;
 var HowToPlay;
@@ -291,6 +329,12 @@ var Menu;
 var sounds = {
 	click: new Audio("click.mp3"),
 	moving: new Audio("machine_drone.mp3")
+};
+
+var config = {
+	trackpad: false,
+	energyCap: 6,
+	energyRate: 3
 };
 
 ////////////////////////////////////   Objects
@@ -345,10 +389,8 @@ Bot = function(x, y, hue, name) {
 	};
 	
 	// Energy
-	this.energyPerTurn = 3;
-	this.energyMax = 6;
-	this.energy = 6;
-	this.cEnergy = 0;
+	this.energy = 0;
+	
 	
 	// Color of the bot
 	this.color = "hsl(" + hue + ", 100%, 50%)";
@@ -682,7 +724,7 @@ Playing.prototype.nextTurn = function() {
 	// Push the previous bot to the back of the list
 	this.model.bots.splice(0, 1);
 	this.model.bots.push(bot);
-	newBot = this.model.bots[0];
+	var newBot = this.model.bots[0];
 	
 	// Move camera to new bot
 	if(newBot.placed) {
@@ -707,10 +749,10 @@ Playing.prototype.nextTurn = function() {
 	}
 	
 	// Give new robot more energy
-	if(newBot.energy < newBot.energyMax) {
-		newBot.energy += newBot.energyPerTurn;
-		if(newBot.energy > newBot.energyMax) {
-			newBot.energy = newBot.energyMax;
+	if(newBot.energy < config.energyCap) {
+		newBot.energy += config.energyRate;
+		if(newBot.energy > config.energyCap) {
+			newBot.energy = config.energyCap;
 		}
 	}
 	
@@ -796,7 +838,7 @@ Playing.prototype.steer = function() {
 	var bot = this.model.bots[0];
 	if(mouse.click && mouse.y > this.infobar.height) {
 		mouse.click = false;
-		coords = vToV(bot.pos, this.ms);
+		var coords = vToV(bot.pos, this.ms);
 		var tileClicked = bot.map.get(coords.x, coords.y);
 		if(tileClicked === "head") {
 			sounds.click.play();
@@ -1039,6 +1081,20 @@ Setup.prototype.readColors = function() {
 	if(keys.enter) {
 		sounds.click.play();
 		l("color-input-overlay").style.display = "none";
+		l("gameoptions-overlay").style.display = "block";
+		this.step = "options";
+	}
+};
+
+Setup.prototype.readOptions = function() {
+	config.trackpad = l("trackpad-checkbox").value === "checked";
+	config.energyRate = l("energyrate-textbox").value * 1;
+	config.energyCap = l("energycap-textbox").value * 1;
+	l("energyrate-slider-value").innerHTML = config.energyRate;
+	l("energycap-slider-value").innerHTML = config.energyCap;
+	if(keys.enter) {
+		sounds.click.play();
+		l("gameoptions-overlay").style.display = "none";
 		state = new Playing(this.model);
 	}
 };
@@ -1066,6 +1122,7 @@ Setup.prototype.menuButton = function() {
 		state = new Menu();
 		l("name-input-overlay").style.display = "none";
 		l("color-input-overlay").style.display = "none";
+		l("gameoptions-overlay").style.display = "none";
 	}
 };
 
@@ -1077,6 +1134,9 @@ Setup.prototype.update = function() {
 			break;
 		case "colors":
 			this.readColors();
+			break;
+		case "options":
+			this.readOptions();
 			break;
 	}
 	clearCanvas();
