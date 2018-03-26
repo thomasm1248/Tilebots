@@ -661,9 +661,12 @@ Playing.prototype.drawEverything = function() {
 	}
 	// Draw all the bots
 	for(var i in this.model.bots) {
-		if(i !== this.botInFocus || this.subState === "steer") {
+		if(i !== this.botInFocus) {
 			this.model.bots[i].draw(false);
 		}
+	}
+	if(this.subState === "steer") {
+		this.model.bots[this.botInFocus].draw(false);
 	}
 	// Undo camera
 	ctx.restore();
