@@ -392,6 +392,7 @@ Bot = function(x, y, hue, name) {
 	
 	// Color of the bot
 	this.color = "hsl(" + hue + ", 100%, 50%)";
+	this.cColor = "hsl(" + (hue + 180) % 360 + ", 100%, 50%)";
 	
 	// Map of the bot
 	this.map = new Map();
