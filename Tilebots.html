@@ -553,6 +553,8 @@ Bot.prototype.draw = function(fixed) {
 	ctx.fillStyle = this.color;
 	ctx.strokeStyle = this.color;
 	ctx.lineWidth = 0.04;
+	ctx.shadowColor = this.color;
+	ctx.shadowBlur = 0.1;
 	for(var i in this.map.cellArr) {
 		this.drawTile(this.map.cellArr[i]);
 	}
