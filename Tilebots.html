@@ -392,7 +392,6 @@ Bot = function(x, y, hue, name) {
 	
 	// Color of the bot
 	this.color = "hsl(" + hue + ", 100%, 50%)";
-	this.cColor = "hsl(" + (hue + 180) % 360 + ", 100%, 50%)";
 	
 	// Map of the bot
 	this.map = new Map();
@@ -685,9 +684,9 @@ Playing.prototype.drawEverything = function() {
 	// Grapple line
 	if(this.subState === "move animation") {
 		var bot = this.model.bots[0];
-		ctx.strokeStyle = bot.cColor;
+		ctx.strokeStyle = bot.color;
 		ctx.lineWidth = 0.04;
-		ctx.shadowColor = bot.cColor;
+		ctx.shadowColor = bot.color;
 		ctx.shadowBlur = 0.1;
 		ctx.beginPath();
 		ctx.moveTo(bot.pos.x + 0.5, bot.pos.y + 0.5);
