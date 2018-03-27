@@ -765,7 +765,7 @@ Playing.prototype.nextTurn = function() {
 	}
 	
 	// Give new robot more energy
-	if(newBot.energy < config.energyCap) {
+	if(newBot.placed && newBot.energy < config.energyCap) {
 		newBot.energy += config.energyRate;
 		if(newBot.energy > config.energyCap) {
 			newBot.energy = config.energyCap;
