@@ -225,18 +225,12 @@ var animator =
 var mouse = {
 	x: 0,
 	y: 0,
-	dx: 0,
-	dy: 0,
 	click: false
 };
 
 var keys = {
 	plus: false,
 	minus: false,
-	b: false,
-	f: false,
-	w: false,
-	d: false,
 	enter: false
 };
 
@@ -594,6 +588,8 @@ Playing = function(model) {
 		y: 10,
 		zoom: 30
 	};
+	this.cameraMoveSpeed = 0.05;
+	this.cameraStillBoxSize = 100;
 	this.zoomMultiplier = 1.2;
 	this.maxZoom = 70;
 	this.minZoom = 20;
@@ -831,11 +827,11 @@ Playing.prototype.followControls = function() {
 					break;
 			}
 			if(!usesEnergy || bot.energy > 0) {
+				mouse.click = false;
 				sounds.click.play();
 				bot.map.set(coords.x, coords.y, newTile);
 				if(usesEnergy) bot.energy--;
 			}
-			mouse.click = false;
 		}
 	}
 	
@@ -849,6 +845,7 @@ Playing.prototype.followControls = function() {
 				this.subState = "steer";
 			}
 		} else if(this.ms.x >= 0 && this.ms.y >= 0 && this.ms.x < this.arena.w && this.ms.y < this.arena.h) {
+			mouse.click = false;
 			bot.pos.x = this.ms.x;
 			bot.pos.y = this.ms.y;
 			bot.placed = true;
@@ -998,6 +995,7 @@ Playing.prototype.update = function() {
 			this.menuButton();
 			break;
 	}
+	
 	// Animate camera
 	if(this.camIsAnimating) {
 		this.camPercent += this.camPercentPerFrame;
@@ -1011,9 +1009,18 @@ Playing.prototype.update = function() {
 			this.camera.y = newCamPos.y;
 		}
 	}
+	
 	// Move camera
-	this.camera.x += mouse.dx / this.camera.zoom;
-	this.camera.y += mouse.dy / this.camera.zoom;
+	var dx = mouse.x - canvas.width / 2;
+	var dy = mouse.y - canvas.height / 2;
+	if(Math.abs(dx) > this.cameraStillBoxSize) {
+		dx = dx / Math.abs(dx) * Math.max(0, Math.abs(dx) - this.cameraStillBoxSize);
+	} else dx = 0;
+	if(Math.abs(dy) > this.cameraStillBoxSize) {
+		dy = dy / Math.abs(dy) * Math.max(0, Math.abs(dy) - this.cameraStillBoxSize);
+	} else dy = 0;
+	this.camera.x += dx / this.camera.zoom * this.cameraMoveSpeed;
+	this.camera.y += dy / this.camera.zoom * this.cameraMoveSpeed;
 	if(this.camera.x < 0) this.camera.x = 0;
 	if(this.camera.x > this.arena.w) this.camera.x = this.arena.w;
 	if(this.camera.y < 0) this.camera.y = 0;
@@ -1142,6 +1149,7 @@ Setup.prototype.menuButton = function() {
 		this.menuButtonHovered = false;
 	}
 	if(this.menuButtonHovered && mouse.click) {
+		mouse.click = false;
 		sounds.click.play();
 		state = new Menu();
 		l("name-input-overlay").style.display = "none";
@@ -1194,6 +1202,7 @@ HowToPlay.prototype.menuButton = function() {
 		this.menuButtonHovered = false;
 	}
 	if(this.menuButtonHovered && mouse.click) {
+		mouse.click = false;
 		sounds.click.play();
 		state = new Menu();
 		l("instructions-overlay").style.display = "none";
@@ -1232,6 +1241,7 @@ Credits.prototype.menuButton = function() {
 		this.menuButtonHovered = false;
 	}
 	if(this.menuButtonHovered && mouse.click) {
+		mouse.click = false;
 		sounds.click.play();
 		state = new Menu();
 		l("credits-overlay").style.display = "none";
@@ -1298,6 +1308,7 @@ Menu.prototype.playButton = function() {
 	}
 	
 	if(this.playButtonHovered && mouse.click) {
+		mouse.click = false;
 		sounds.click.play();
 		state = new Setup();
 	}
@@ -1313,6 +1324,7 @@ Menu.prototype.howToPlayButton = function() {
 	}
 	
 	if(this.howToPlayHovered && mouse.click) {
+		mouse.click = false;
 		sounds.click.play();
 		state = new HowToPlay();
 	}
@@ -1328,6 +1340,7 @@ Menu.prototype.creditsButton = function() {
 	}
 	
 	if(this.creditsHovered && mouse.click) {
+		mouse.click = false;
 		sounds.click.play();
 		state = new Credits();
 	}
@@ -1356,31 +1369,22 @@ function draw() {
 	// Reset temporary event variables
 	mouse.dx = 0;
 	mouse.dy = 0;
-	mouse.click = false;
 	for(var i in keys) {keys[i] = false;}
+	mouse.click = false;
+	// Record mouse position
+	mouse.px = mouse.x;
+	mouse.py = mouse.y;
 }
 
 ////////////////////////////////////   Event Handlers
 
-window.addEventListener('mousemove', function(e) {
-	var rect = canvas.getBoundingClientRect();
-	mouse.x = e.clientX - rect.left;
-	mouse.y = e.clientY - rect.top;
-}, false);
-canvas.addEventListener('mousemove', function(e) {
-	var rect = canvas.getBoundingClientRect();
-	mouse.x = e.clientX - rect.left;
-	mouse.y = e.clientY - rect.top;
+document.addEventListener('mousemove', function(e) {
+	mouse.x = e.clientX;
+	mouse.y = e.clientY;
 }, false);
 
-window.addEventListener('click', function(e) {
+document.addEventListener('click', function(e) {
 	mouse.click = true;
-}, false);
-
-canvas.addEventListener('mousewheel', function(e) {
-	mouse.dx = e.deltaX;
-	mouse.dy = e.deltaY;
-	e.preventDefault();
 }, false);
 
 window.addEventListener('keydown', function(e) {
@@ -1395,18 +1399,6 @@ window.addEventListener('keydown', function(e) {
 			break;
 		case 189:
 			keys.minus = true;
-			break;
-		case 66:
-			keys.b = true;
-			break;
-		case 70:
-			keys.f = true;
-			break;
-		case 87:
-			keys.w = true;
-			break;
-		case 68:
-			keys.d = true;
 			break;
 		case 13:
 			keys.enter = true;
