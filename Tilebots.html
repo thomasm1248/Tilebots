@@ -712,7 +712,15 @@ Playing.prototype.drawEverything = function() {
 	ctx.stroke();
 	ctx.font = this.infobar.font;
 	ctx.fillStyle = this.model.bots[0].color;
-	ctx.fillText(this.model.bots[0].name + ": " + this.model.bots[0].energy, 20, 67);
+	var displayText = ": ";
+	if(!this.model.bots[0].placed) {
+		displayText += "Place";
+	} else if(this.subState === "steer") {
+		displayText += "Move";
+	} else {
+		displayText += this.model.bots[0].energy;
+	}
+	ctx.fillText(this.model.bots[0].name + displayText, 20, 67);
 };
 
 Playing.prototype.nextTurn = function() {
