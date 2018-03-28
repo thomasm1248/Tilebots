@@ -615,6 +615,7 @@ Playing = function(model) {
 	this.subState = "editing";
 	/* Substates:
 			* editing
+			* steer
 			* move animation
 			* attack animation
 			* game over
@@ -723,21 +724,15 @@ Playing.prototype.nextTurn = function() {
 	// Make it easier to access main bot
 	var bot = this.model.bots[0];
 	
-	// Cut anything off bot that isn't within bounds
-	for(var i in bot.map.cellArr) {
-		if(!bot.withinBounds(bot.map.cellArr[i].coords)) {
-			bot.map.cellArr[i].value = "";
-		}
-	}
-	
-	// Attack other bots
-	var attackPoints = bot.getAttackPoints();
-	for(i = 1; i < this.model.bots.length; i++) {
-		var score = this.model.bots[i].beAttacked(attackPoints);
-		bot.energy += score.count;
-		if(score.dead) {
-			this.model.bots.splice(i, 1);
-			i--;
+	// Finish unfinished tiles
+	for(i in bot.map.cellArr) {
+		switch(bot.map.cellArr[i].value) {
+			case "unfinished foot":
+				bot.map.cellArr[i].value = "foot";
+				break;
+			case "unfinished weapon":
+				bot.map.cellArr[i].value = "weapon";
+				break;
 		}
 	}
 	
@@ -754,18 +749,6 @@ Playing.prototype.nextTurn = function() {
 		this.camPos2.y = newBot.pos.y;
 		this.camPercent = 0;
 		this.camIsAnimating = true;
-	}
-	
-	// Finish unfinished tiles
-	for(i in newBot.map.cellArr) {
-		switch(newBot.map.cellArr[i].value) {
-			case "unfinished foot":
-				newBot.map.cellArr[i].value = "foot";
-				break;
-			case "unfinished weapon":
-				newBot.map.cellArr[i].value = "weapon";
-				break;
-		}
 	}
 	
 	// Give new robot more energy
@@ -790,6 +773,32 @@ Playing.prototype.movementPhase = function(newPos) {
 	sounds.moving.currentTime = 0;
 	sounds.moving.play();
 	this.subState = "move animation";
+};
+
+Playing.prototype.attackPhase = function() {
+	// Make current bot easier to access
+	var bot = this.model.bots[0];
+	
+	// Cut anything off bot that isn't within bounds
+	for(var i in bot.map.cellArr) {
+		if(!bot.withinBounds(bot.map.cellArr[i].coords)) {
+			bot.map.cellArr[i].value = "";
+		}
+	}
+	
+	// Attack other bots
+	var attackPoints = bot.getAttackPoints();
+	for(i = 1; i < this.model.bots.length; i++) {
+		var score = this.model.bots[i].beAttacked(attackPoints);
+		bot.energy += score.count;
+		if(score.dead) {
+			this.model.bots.splice(i, 1);
+			i--;
+		}
+	}
+	
+	// Next state
+	this.nextTurn();
 };
 
 Playing.prototype.followControls = function() {
@@ -876,10 +885,13 @@ Playing.prototype.animateMovement = function() {
 	if(this.currentProgress > 1) {
 		sounds.moving.pause();
 		this.model.bots[0].pos = this.endPos;
-		this.nextTurn();
+		this.attackPhase();
 	} else {
 		this.model.bots[0].pos = addV(this.startPos, scaleV(this.vToGoal, this.currentProgress));
 	}
+};
+
+Playing.prototype.animateDestruction = function() {
 };
 
 Playing.prototype.drawGameOverScreen = function() {
@@ -987,6 +999,11 @@ Playing.prototype.update = function() {
 			break;
 		case "move animation":
 			this.animateMovement();
+			// Draw
+			this.drawEverything();
+			break;
+		case "attack animation":
+			this.animateDestruction();
 			// Draw
 			this.drawEverything();
 			break;
