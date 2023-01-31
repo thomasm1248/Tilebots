@@ -213,12 +213,6 @@ var canvas = l("canvas");
 var ctx = canvas.getContext("2d");
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
-var animator =
-	window.RequestAnimationFrame ||
-	window.oRequestAnimationFrame ||
-	window.msRequestAnimationFrame ||
-	window.mozRequestAnimationFrame ||
-	window.webkitRequestAnimationFrame;
 
 ////////////////////////////////////   Util
 
@@ -1377,7 +1371,7 @@ Menu.prototype.update = function() {
 state = new Menu();
 function draw() {
 	// Let there be another frame
-	animator(draw);
+	window.requestAnimationFrame(draw);
 	// Resize canvas
 	canvas.width = window.innerWidth;
 	canvas.height = window.innerHeight;
