@@ -41,6 +41,11 @@ body {
 	margin: 100px auto;
 }
 
+#gameoptions-container {
+	width: 400px;
+	margin: 100px auto;
+}
+
 #content-container {
 	width: 600px;
 	margin: 100px auto;
@@ -92,6 +97,32 @@ body {
 	margin-top: 20px;
 }
 
+.overlay-checkbox {
+	-webkit-appearance: none;
+	background-color: black;
+	border: 1px solid white;
+	padding: 5px;
+	width: 22px;
+	height: 22px;
+	margin-left: 10px;
+	display: inline-block;
+	position: relative;
+}
+
+.overlay-checkbox:checked:after {
+	content: '\2714';
+	font-size: 14px;
+	position: absolute;
+	top: 0;
+	left: 3px;
+	color: white;
+}
+
+.overlay-slider {
+	margin-left: 10px;
+	margin-right: 10px;
+}
+
 #name_input {
 	font-family: "Arcade";
 	font-size: 40px;
@@ -111,16 +142,25 @@ body {
 	</canvas>
 	<div class="overlay" id="name-input-overlay">
 		<div id="name-input-container">
-			<h1>Setup</h1>
-			<textarea id="name_input" spellcheck="false"></textarea>
+			<h1>Names</h1>
+			<textarea id="name_input" spellcheck="false" onclick="sounds.click.play()"></textarea>
 			<p>Press ENTER to continue</p>
 		</div>
 	</div>
 	<div class="overlay" id="color-input-overlay">
 		<div id="color-input-container">
-			<h1>Setup</h1>
+			<h1>Colors</h1>
 			<div id="color-form-container">
 			</div>
+			<p>Press ENTER to continue</p>
+		</div>
+	</div>
+	<div class="overlay" id="gameoptions-overlay">
+		<div id="gameoptions-container">
+			<h1>Options</h1>
+			<p>Track pad:<input class="overlay-checkbox" id="trackpad-checkbox" type="checkbox" onclick="sounds.click.play()"></p>
+			<p>Energy Rate:<input class="overlay-slider" id="energyrate-textbox" type="range" onclick="sounds.click.play()" min="1" max="10" value="3" step="1"><span id="energyrate-slider-value">3</span></p>
+			<p>Energy Cap:<input class="overlay-slider" id="energycap-textbox" type="range" onclick="sounds.click.play()" min="1" max="15" value="6" step="1"><span id="energycap-slider-value">3</span></p>
 			<p>Press ENTER to continue</p>
 		</div>
 	</div>
@@ -141,8 +181,6 @@ body {
 			<p>The tile with an X in it is a weapon tile. It can't be used until your next turn.</p>
 			<p>Tiles that can't be used until your next turn are marked with a cross:</p>
 			<img src="locked-tiles-example.png"/>
-			<h2>Setup</h2>
-			<p>When you click the play button, a box will appear. Enter the names of the players in the box, and press ENTER twice to begin choosing colors. Use the sliders to choose each robot's color.</p>
 			<h2>On Your turn</h2>
 			<p>Use the +/- buttons to zoom in/out. Scroll to move the camera.</p>
 			<h3>Start Phase</h3>
@@ -184,24 +222,15 @@ var animator =
 
 ////////////////////////////////////   Util
 
-var r2d = 180 / Math.PI;
-var d2r = Math.PI / 180;
-
 var mouse = {
 	x: 0,
 	y: 0,
-	dx: 0,
-	dy: 0,
 	click: false
 };
 
 var keys = {
 	plus: false,
 	minus: false,
-	b: false,
-	f: false,
-	w: false,
-	d: false,
 	enter: false
 };
 
@@ -210,6 +239,7 @@ function debug(a, b) {
 	if(a === undefined) {
 		var body = document.getElementById("body");
 		body.innerHTML = debugLog;
+		body.style.overflow = "scroll";
 		return;
 	} else if(b === undefined) {
 		a = new Option(JSON.stringify(a)).innerHTML; // Make text html safe
@@ -281,7 +311,7 @@ var Model;
 
 var Bot;
 
-var GameOver;
+var state;
 var Playing;
 var Setup;
 var HowToPlay;
@@ -291,6 +321,12 @@ var Menu;
 var sounds = {
 	click: new Audio("click.mp3"),
 	moving: new Audio("machine_drone.mp3")
+};
+
+var config = {
+	trackpad: false,
+	energyCap: 6,
+	energyRate: 3
 };
 
 ////////////////////////////////////   Objects
@@ -345,10 +381,8 @@ Bot = function(x, y, hue, name) {
 	};
 	
 	// Energy
-	this.energyPerTurn = 3;
-	this.energyMax = 6;
-	this.energy = 6;
-	this.cEnergy = 0;
+	this.energy = 0;
+	
 	
 	// Color of the bot
 	this.color = "hsl(" + hue + ", 100%, 50%)";
@@ -513,6 +547,8 @@ Bot.prototype.draw = function(fixed) {
 	ctx.fillStyle = this.color;
 	ctx.strokeStyle = this.color;
 	ctx.lineWidth = 0.04;
+	ctx.shadowColor = this.color;
+	ctx.shadowBlur = 0.1;
 	for(var i in this.map.cellArr) {
 		this.drawTile(this.map.cellArr[i]);
 	}
@@ -552,6 +588,8 @@ Playing = function(model) {
 		y: 10,
 		zoom: 30
 	};
+	this.cameraMoveSpeed = 0.05;
+	this.cameraStillBoxSize = 100;
 	this.zoomMultiplier = 1.2;
 	this.maxZoom = 70;
 	this.minZoom = 20;
@@ -577,6 +615,7 @@ Playing = function(model) {
 	this.subState = "editing";
 	/* Substates:
 			* editing
+			* steer
 			* move animation
 			* attack animation
 			* game over
@@ -621,9 +660,12 @@ Playing.prototype.drawEverything = function() {
 	}
 	// Draw all the bots
 	for(var i in this.model.bots) {
-		if(i !== this.botInFocus || this.subState === "steer") {
+		if(i !== this.botInFocus) {
 			this.model.bots[i].draw(false);
 		}
+	}
+	if(this.subState === "steer") {
+		this.model.bots[this.botInFocus].draw(false);
 	}
 	// Undo camera
 	ctx.restore();
@@ -636,6 +678,19 @@ Playing.prototype.drawEverything = function() {
 	ctx.translate(canvas.width / 2, canvas.height / 2);
 	scale(this.camera.zoom);
 	ctx.translate(-this.camera.x, -this.camera.y);
+	// Grapple line
+	if(this.subState === "move animation") {
+		var bot = this.model.bots[0];
+		ctx.strokeStyle = bot.color;
+		ctx.lineWidth = 0.04;
+		ctx.shadowColor = bot.color;
+		ctx.shadowBlur = 0.1;
+		ctx.beginPath();
+		ctx.moveTo(bot.pos.x + 0.5, bot.pos.y + 0.5);
+		ctx.lineTo(this.endPos.x + 0.5, this.endPos.y + 0.5);
+		ctx.rect(this.endPos.x + 0.2, this.endPos.y + 0.2, 0.6, 0.6);
+		ctx.stroke();
+	}
 	// Draw focused bot
 	if(this.subState === "steer") {
 		this.model.bots[this.botInFocus].drawSteeringTiles();
@@ -654,11 +709,74 @@ Playing.prototype.drawEverything = function() {
 	ctx.stroke();
 	ctx.font = this.infobar.font;
 	ctx.fillStyle = this.model.bots[0].color;
-	ctx.fillText(this.model.bots[0].name + ": " + this.model.bots[0].energy, 20, 67);
+	var displayText = ": ";
+	if(!this.model.bots[0].placed) {
+		displayText += "Place";
+	} else if(this.subState === "steer") {
+		displayText += "Move";
+	} else {
+		displayText += this.model.bots[0].energy;
+	}
+	ctx.fillText(this.model.bots[0].name + displayText, 20, 67);
 };
 
 Playing.prototype.nextTurn = function() {
 	// Make it easier to access main bot
+	var bot = this.model.bots[0];
+	
+	// Finish unfinished tiles
+	for(i in bot.map.cellArr) {
+		switch(bot.map.cellArr[i].value) {
+			case "unfinished foot":
+				bot.map.cellArr[i].value = "foot";
+				break;
+			case "unfinished weapon":
+				bot.map.cellArr[i].value = "weapon";
+				break;
+		}
+	}
+	
+	// Push the previous bot to the back of the list
+	this.model.bots.splice(0, 1);
+	this.model.bots.push(bot);
+	var newBot = this.model.bots[0];
+	
+	// Move camera to new bot
+	if(newBot.placed) {
+		this.camPos1.x = this.camera.x;
+		this.camPos1.y = this.camera.y;
+		this.camPos2.x = newBot.pos.x;
+		this.camPos2.y = newBot.pos.y;
+		this.camPercent = 0;
+		this.camIsAnimating = true;
+	}
+	
+	// Give new robot more energy
+	if(newBot.placed && newBot.energy < config.energyCap) {
+		newBot.energy += config.energyRate;
+		if(newBot.energy > config.energyCap) {
+			newBot.energy = config.energyCap;
+		}
+	}
+	
+	this.subState = "editing";
+};
+
+Playing.prototype.movementPhase = function(newPos) {
+	this.startPos.x = this.model.bots[0].pos.x;//a
+	this.startPos.y = this.model.bots[0].pos.y;
+	this.endPos = newPos;
+	this.vToGoal = vToV(this.startPos, this.endPos);
+	var distToGoal = getDist(this.startPos, this.endPos);
+	this.cPerFrame = 1 / distToGoal * this.speedMultiplier;
+	this.currentProgress = 0;
+	sounds.moving.currentTime = 0;
+	sounds.moving.play();
+	this.subState = "move animation";
+};
+
+Playing.prototype.attackPhase = function() {
+	// Make current bot easier to access
 	var bot = this.model.bots[0];
 	
 	// Cut anything off bot that isn't within bounds
@@ -679,55 +797,8 @@ Playing.prototype.nextTurn = function() {
 		}
 	}
 	
-	// Push the previous bot to the back of the list
-	this.model.bots.splice(0, 1);
-	this.model.bots.push(bot);
-	newBot = this.model.bots[0];
-	
-	// Move camera to new bot
-	if(newBot.placed) {
-		this.camPos1.x = this.camera.x;
-		this.camPos1.y = this.camera.y;
-		this.camPos2.x = newBot.pos.x;
-		this.camPos2.y = newBot.pos.y;
-		this.camPercent = 0;
-		this.camIsAnimating = true;
-	}
-	
-	// Finish unfinished tiles
-	for(i in newBot.map.cellArr) {
-		switch(newBot.map.cellArr[i].value) {
-			case "unfinished foot":
-				newBot.map.cellArr[i].value = "foot";
-				break;
-			case "unfinished weapon":
-				newBot.map.cellArr[i].value = "weapon";
-				break;
-		}
-	}
-	
-	// Give new robot more energy
-	if(newBot.energy < newBot.energyMax) {
-		newBot.energy += newBot.energyPerTurn;
-		if(newBot.energy > newBot.energyMax) {
-			newBot.energy = newBot.energyMax;
-		}
-	}
-	
-	this.subState = "editing";
-};
-
-Playing.prototype.movementPhase = function(newPos) {
-	this.startPos.x = this.model.bots[0].pos.x;//a
-	this.startPos.y = this.model.bots[0].pos.y;
-	this.endPos = newPos;
-	this.vToGoal = vToV(this.startPos, this.endPos);
-	var distToGoal = getDist(this.startPos, this.endPos);
-	this.cPerFrame = 1 / distToGoal * this.speedMultiplier;
-	this.currentProgress = 0;
-	sounds.moving.currentTime = 0;
-	sounds.moving.play();
-	this.subState = "move animation";
+	// Next state
+	this.nextTurn();
 };
 
 Playing.prototype.followControls = function() {
@@ -765,11 +836,11 @@ Playing.prototype.followControls = function() {
 					break;
 			}
 			if(!usesEnergy || bot.energy > 0) {
+				mouse.click = false;
 				sounds.click.play();
 				bot.map.set(coords.x, coords.y, newTile);
 				if(usesEnergy) bot.energy--;
 			}
-			mouse.click = false;
 		}
 	}
 	
@@ -783,6 +854,7 @@ Playing.prototype.followControls = function() {
 				this.subState = "steer";
 			}
 		} else if(this.ms.x >= 0 && this.ms.y >= 0 && this.ms.x < this.arena.w && this.ms.y < this.arena.h) {
+			mouse.click = false;
 			bot.pos.x = this.ms.x;
 			bot.pos.y = this.ms.y;
 			bot.placed = true;
@@ -796,7 +868,7 @@ Playing.prototype.steer = function() {
 	var bot = this.model.bots[0];
 	if(mouse.click && mouse.y > this.infobar.height) {
 		mouse.click = false;
-		coords = vToV(bot.pos, this.ms);
+		var coords = vToV(bot.pos, this.ms);
 		var tileClicked = bot.map.get(coords.x, coords.y);
 		if(tileClicked === "head") {
 			sounds.click.play();
@@ -813,10 +885,13 @@ Playing.prototype.animateMovement = function() {
 	if(this.currentProgress > 1) {
 		sounds.moving.pause();
 		this.model.bots[0].pos = this.endPos;
-		this.nextTurn();
+		this.attackPhase();
 	} else {
 		this.model.bots[0].pos = addV(this.startPos, scaleV(this.vToGoal, this.currentProgress));
 	}
+};
+
+Playing.prototype.animateDestruction = function() {
 };
 
 Playing.prototype.drawGameOverScreen = function() {
@@ -927,11 +1002,17 @@ Playing.prototype.update = function() {
 			// Draw
 			this.drawEverything();
 			break;
+		case "attack animation":
+			this.animateDestruction();
+			// Draw
+			this.drawEverything();
+			break;
 		case "game over":
 			this.drawGameOverScreen();
 			this.menuButton();
 			break;
 	}
+	
 	// Animate camera
 	if(this.camIsAnimating) {
 		this.camPercent += this.camPercentPerFrame;
@@ -945,9 +1026,18 @@ Playing.prototype.update = function() {
 			this.camera.y = newCamPos.y;
 		}
 	}
+	
 	// Move camera
-	this.camera.x += mouse.dx / this.camera.zoom;
-	this.camera.y += mouse.dy / this.camera.zoom;
+	var dx = mouse.x - canvas.width / 2;
+	var dy = mouse.y - canvas.height / 2;
+	if(Math.abs(dx) > this.cameraStillBoxSize) {
+		dx = dx / Math.abs(dx) * (Math.abs(dx) - this.cameraStillBoxSize);
+	} else dx = 0;
+	if(Math.abs(dy) > this.cameraStillBoxSize) {
+		dy = dy / Math.abs(dy) * (Math.abs(dy) - this.cameraStillBoxSize);
+	} else dy = 0;
+	this.camera.x += dx / this.camera.zoom * this.cameraMoveSpeed;
+	this.camera.y += dy / this.camera.zoom * this.cameraMoveSpeed;
 	if(this.camera.x < 0) this.camera.x = 0;
 	if(this.camera.x > this.arena.w) this.camera.x = this.arena.w;
 	if(this.camera.y < 0) this.camera.y = 0;
@@ -1039,6 +1129,20 @@ Setup.prototype.readColors = function() {
 	if(keys.enter) {
 		sounds.click.play();
 		l("color-input-overlay").style.display = "none";
+		l("gameoptions-overlay").style.display = "block";
+		this.step = "options";
+	}
+};
+
+Setup.prototype.readOptions = function() {
+	config.trackpad = l("trackpad-checkbox").value === "checked";
+	config.energyRate = l("energyrate-textbox").value * 1;
+	config.energyCap = l("energycap-textbox").value * 1;
+	l("energyrate-slider-value").innerHTML = config.energyRate;
+	l("energycap-slider-value").innerHTML = config.energyCap;
+	if(keys.enter) {
+		sounds.click.play();
+		l("gameoptions-overlay").style.display = "none";
 		state = new Playing(this.model);
 	}
 };
@@ -1062,10 +1166,12 @@ Setup.prototype.menuButton = function() {
 		this.menuButtonHovered = false;
 	}
 	if(this.menuButtonHovered && mouse.click) {
+		mouse.click = false;
 		sounds.click.play();
 		state = new Menu();
 		l("name-input-overlay").style.display = "none";
 		l("color-input-overlay").style.display = "none";
+		l("gameoptions-overlay").style.display = "none";
 	}
 };
 
@@ -1077,6 +1183,9 @@ Setup.prototype.update = function() {
 			break;
 		case "colors":
 			this.readColors();
+			break;
+		case "options":
+			this.readOptions();
 			break;
 	}
 	clearCanvas();
@@ -1110,6 +1219,7 @@ HowToPlay.prototype.menuButton = function() {
 		this.menuButtonHovered = false;
 	}
 	if(this.menuButtonHovered && mouse.click) {
+		mouse.click = false;
 		sounds.click.play();
 		state = new Menu();
 		l("instructions-overlay").style.display = "none";
@@ -1148,6 +1258,7 @@ Credits.prototype.menuButton = function() {
 		this.menuButtonHovered = false;
 	}
 	if(this.menuButtonHovered && mouse.click) {
+		mouse.click = false;
 		sounds.click.play();
 		state = new Menu();
 		l("credits-overlay").style.display = "none";
@@ -1214,6 +1325,7 @@ Menu.prototype.playButton = function() {
 	}
 	
 	if(this.playButtonHovered && mouse.click) {
+		mouse.click = false;
 		sounds.click.play();
 		state = new Setup();
 	}
@@ -1229,6 +1341,7 @@ Menu.prototype.howToPlayButton = function() {
 	}
 	
 	if(this.howToPlayHovered && mouse.click) {
+		mouse.click = false;
 		sounds.click.play();
 		state = new HowToPlay();
 	}
@@ -1244,6 +1357,7 @@ Menu.prototype.creditsButton = function() {
 	}
 	
 	if(this.creditsHovered && mouse.click) {
+		mouse.click = false;
 		sounds.click.play();
 		state = new Credits();
 	}
@@ -1272,31 +1386,22 @@ function draw() {
 	// Reset temporary event variables
 	mouse.dx = 0;
 	mouse.dy = 0;
-	mouse.click = false;
 	for(var i in keys) {keys[i] = false;}
+	mouse.click = false;
+	// Record mouse position
+	mouse.px = mouse.x;
+	mouse.py = mouse.y;
 }
 
 ////////////////////////////////////   Event Handlers
 
-window.addEventListener('mousemove', function(e) {
-	var rect = canvas.getBoundingClientRect();
-	mouse.x = e.clientX - rect.left;
-	mouse.y = e.clientY - rect.top;
-}, false);
-canvas.addEventListener('mousemove', function(e) {
-	var rect = canvas.getBoundingClientRect();
-	mouse.x = e.clientX - rect.left;
-	mouse.y = e.clientY - rect.top;
+document.addEventListener('mousemove', function(e) {
+	mouse.x = e.clientX;
+	mouse.y = e.clientY;
 }, false);
 
-window.addEventListener('click', function(e) {
+document.addEventListener('click', function(e) {
 	mouse.click = true;
-}, false);
-
-canvas.addEventListener('mousewheel', function(e) {
-	mouse.dx = e.deltaX;
-	mouse.dy = e.deltaY;
-	e.preventDefault();
 }, false);
 
 window.addEventListener('keydown', function(e) {
@@ -1311,18 +1416,6 @@ window.addEventListener('keydown', function(e) {
 			break;
 		case 189:
 			keys.minus = true;
-			break;
-		case 66:
-			keys.b = true;
-			break;
-		case 70:
-			keys.f = true;
-			break;
-		case 87:
-			keys.w = true;
-			break;
-		case 68:
-			keys.d = true;
 			break;
 		case 13:
 			keys.enter = true;
