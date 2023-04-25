@@ -583,7 +583,10 @@ Playing = function(model) {
 		zoom: 30
 	};
 	this.cameraMoveSpeed = 0.05;
-	this.cameraStillBoxSize = 100;
+	this.cameraStillBoxSize = {
+		x: canvas.width / 4,
+		y: canvas.height / 4
+	};
 	this.zoomMultiplier = 1.2;
 	this.maxZoom = 70;
 	this.minZoom = 20;
@@ -712,6 +715,18 @@ Playing.prototype.drawEverything = function() {
 		displayText += this.model.bots[0].energy;
 	}
 	ctx.fillText(this.model.bots[0].name + displayText, 20, 67);
+	// Draw camera movement box
+	ctx.save();
+	ctx.strokeStyle = "white";
+	ctx.lineWidth = 3;
+	ctx.globalAlpha = 0.1;
+	ctx.strokeRect(
+		canvas.width/2 - this.cameraStillBoxSize.x,
+		canvas.height/2 - this.cameraStillBoxSize.y,
+		this.cameraStillBoxSize.x*2,
+		this.cameraStillBoxSize.y*2
+	);
+	ctx.restore();
 };
 
 Playing.prototype.nextTurn = function() {
@@ -1024,11 +1039,11 @@ Playing.prototype.update = function() {
 	// Move camera
 	var dx = mouse.x - canvas.width / 2;
 	var dy = mouse.y - canvas.height / 2;
-	if(Math.abs(dx) > this.cameraStillBoxSize) {
-		dx = dx / Math.abs(dx) * (Math.abs(dx) - this.cameraStillBoxSize);
+	if(Math.abs(dx) > this.cameraStillBoxSize.x) {
+		dx = dx / Math.abs(dx) * (Math.abs(dx) - this.cameraStillBoxSize.x);
 	} else dx = 0;
-	if(Math.abs(dy) > this.cameraStillBoxSize) {
-		dy = dy / Math.abs(dy) * (Math.abs(dy) - this.cameraStillBoxSize);
+	if(Math.abs(dy) > this.cameraStillBoxSize.y) {
+		dy = dy / Math.abs(dy) * (Math.abs(dy) - this.cameraStillBoxSize.y);
 	} else dy = 0;
 	this.camera.x += dx / this.camera.zoom * this.cameraMoveSpeed;
 	this.camera.y += dy / this.camera.zoom * this.cameraMoveSpeed;
