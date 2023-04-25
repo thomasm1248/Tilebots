@@ -694,6 +694,21 @@ Playing.prototype.drawEverything = function() {
 	} else {
 		this.model.bots[this.botInFocus].draw(false);
 	}
+	// Draw aiming points
+	if(this.subState === "editing") {
+		for(var i in this.model.bots) {
+			var bot = this.model.bots[i];
+			if(bot.placed) {
+				var x = (bot.pos.x + this.ms.x) / 2 + 0.5;
+				var y = (bot.pos.y + this.ms.y) / 2 + 0.5;
+				ctx.strokeStyle = bot.color;
+				ctx.beginPath();
+				ctx.lineWidth = 0.04;
+				ctx.arc(x, y, 0.3, 0, Math.PI*2);
+				ctx.stroke();
+			}
+		}
+	}
 	// Undo Camera
 	ctx.restore();
 	// Draw Infobar
