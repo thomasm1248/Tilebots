@@ -896,7 +896,7 @@ Playing.prototype.steer = function() {
 		var tileClicked = bot.map.get(coords.x, coords.y);
 		if(tileClicked === "head") {
 			sounds.click.play();
-			this.nextTurn();
+			this.attackPhase();
 		} else if(tileClicked === "foot") {
 			sounds.click.play();
 			this.movementPhase(addV(bot.pos, coords));
